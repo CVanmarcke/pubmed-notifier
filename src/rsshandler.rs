@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::error::Error;
 use rss::Channel;
 use rss::Item;
-use html2md;
 
 // "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=15&name=Insights%20Imaging&utm_campaign=journals"
 

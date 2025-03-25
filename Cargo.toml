@@ -29,7 +29,7 @@ log = "0.4"
 pretty_env_logger = "0.5"
 teloxide_tests = "0.2.0"
 futures = "0.3.31"
-chrono = "0.4.39"
+chrono = {version = "0.4.39", features = ["clock"]}
 redis = { version = "*", features = ["tokio-comp"] }
 rusqlite = { version = "*", features = ["backup"]}
 tokio-rusqlite = "0.6.0"

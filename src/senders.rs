@@ -2,16 +2,12 @@ use std::error::Error;
 use rss::Item;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::types::{LinkPreviewOptions, Message, ParseMode};
-use teloxide::utils::markdown;
 use teloxide::RequestError;
 use teloxide::{types::ChatId, Bot};
 use teloxide::prelude::Requester;
-use tokio::task::JoinSet;
 
 use crate::formatter::PreppedMessage;
-use crate::{
-    datastructs::User,
-};
+use crate::datastructs::User;
 
 pub trait Sender {
     async fn send_item(&self, user: &User, item: &Item) -> Result<(), Box<dyn Error + Sync + Send>>;

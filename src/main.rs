@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::env;
 use std::process;
@@ -52,6 +53,8 @@ use std::time::Duration;
 #[tokio::main]
 async fn main() {
     static LOGGER: SimpleLogger = SimpleLogger;
+    // static LOGGER: LoggerWithSender = LoggerWithSender;
+
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Info);
 
@@ -75,7 +78,11 @@ async fn main() {
 
     if !config.persistent {
         // TODO
-        // db::sqlite::update_channels(&conn).await;
+        let r = db::sqlite::update_channels(&conn).await;
+        if let Err(e) = r {
+            log::error!("Error when updating the channels: {e:?}");
+            process::exit(1);
+        }
         if config.debugmode {
             send_new_and_update_users(&conn, &ConsoleSender {}).await;
         } else {
@@ -171,8 +178,7 @@ async fn send_new_and_update_users<S: Sender>(conn: &rusqlite::Connection, sende
             log::info!("{} new items for user {} to send", items.len(), user.chat_id);
             // TODO result handling
             sender.send_items(&user, &items).await;
-            // TODO wegdoen....
-            // user.update_last_pushed();
+            user.update_last_pushed();
             result.push(db::sqlite::update_user(conn, &user));
         }
     }
@@ -210,6 +216,30 @@ impl log::Log for SimpleLogger {
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
             println!("{} - {}", record.level(), record.args());
+        }
+    }
+    fn flush(&self) {}
+}
+
+struct LoggerWithSender(Bot, i64);
+impl log::Log for LoggerWithSender {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= log::max_level()
+    }
+    fn log(&self, record: &log::Record) {
+        if self.enabled(record.metadata()) {
+            println!("{} - {}", record.level(), record.args());
+            if record.level() == log::Level::Error {
+                let message = format!("Error!\n{}", record.args());
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                if let Err(e) = rt.block_on(async { 
+                    TelegramSender::send_message_bot(&self.0, ChatId(self.1), &message).await
+                }) {
+                    println!("Got an error when trying to send an error to the telegram admin!");
+                    println!("Original error:\n{}", record.args());
+                    println!("Error when trying to send:\n{:?}", e);
+                };
+            }
         }
     }
     fn flush(&self) {}

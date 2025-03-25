@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-
-use html2md::extended::sifter::WhitespaceSifter;
 use regex::{Captures, Regex};
 use rss::Item;
 use teloxide::{types::ParseMode, utils::markdown};

@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
+use chrono::DateTime;
+use chrono::FixedOffset;
 use chrono::Local;
+use chrono::TimeZone;
 use futures::future::join_all;
 use regex::Regex;
 // use crate::rsshandler;
@@ -134,6 +137,16 @@ impl PubmedFeed {
     }
 
     pub async fn update_channel_in_place(&mut self) -> Result<(), Box<dyn Error + Sync + Send>> {
+
+        // Only update once every hour
+        if let Some(last_build_date) = self.channel.last_build_date() {
+            let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date)?.into();
+            let diff = Local::now() - prev;
+            if diff.num_minutes() < 59 {
+                return Ok(())
+            }
+        }
+
         let newchannel = self.download_channel().await?;
         self.channel = newchannel;
         // TODO: als last update <30 min geleden: skippen
