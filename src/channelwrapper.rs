@@ -1,9 +1,9 @@
+use chrono::ParseError;
+use chrono::prelude::*;
 use rss::Channel;
 use rss::Item;
-use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
 use std::ops::Deref;
-use chrono::prelude::*;   
-use chrono::ParseError;
 
 #[derive(Debug, PartialEq)]
 pub struct ChannelWrapper(Channel);
@@ -18,7 +18,7 @@ impl ChannelWrapper {
     pub fn to_json(&self) -> serde_json::Result<String> {
         return serde_json::to_string(&self);
     }
-    pub fn from_json(json: &String) -> serde_json::Result<ChannelWrapper> { 
+    pub fn from_json(json: &String) -> serde_json::Result<ChannelWrapper> {
         return serde_json::from_str(json);
     }
     pub fn replace(&mut self, channel: Channel) {
@@ -40,9 +40,7 @@ impl ChannelWrapper {
             }
         }
         return Ok(new_items);
-}
-
-
+    }
 }
 
 impl Serialize for ChannelWrapper {
@@ -88,7 +86,7 @@ mod tests {
         assert_eq!(cw, cw2)
     }
     // #[test]
-    // fn build_from_json(json: &String) -> serde_json::Result<User> { 
+    // fn build_from_json(json: &String) -> serde_json::Result<User> {
     //     return serde_json::from_str(json);
     // }
 }

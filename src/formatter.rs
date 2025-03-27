@@ -15,18 +15,25 @@ impl PreppedMessage {
         let title = html2md::rewrite_html(item.title().unwrap_or(""), false);
         let mut content = None;
         let journal = Some(
-            item.dublin_core_ext().unwrap().clone()
-                .sources().iter()
-                .next().unwrap().to_owned());
+            item.dublin_core_ext()
+                .unwrap()
+                .clone()
+                .sources()
+                .iter()
+                .next()
+                .unwrap()
+                .to_owned(),
+        );
 
-        let content_formatted = html2md::rewrite_html(item.content().unwrap_or(""), false).replace("**", "*");
+        let content_formatted =
+            html2md::rewrite_html(item.content().unwrap_or(""), false).replace("**", "*");
         log::debug!("{}", content_formatted);
 
         let abstr_start = content_formatted.find("*ABSTRACT*\n");
         let pmid_start = content_formatted.find("PMID:[").unwrap_or(0);
         if abstr_start.is_some() && pmid_start > 0 {
-            content = Some(content_formatted[abstr_start.unwrap() + 11 ..pmid_start].to_string());
-        }        
+            content = Some(content_formatted[abstr_start.unwrap() + 11..pmid_start].to_string());
+        }
 
         let (mut pmid, mut doi) = (None, None);
         let identifiers = item.dublin_core_ext().unwrap().identifiers();
@@ -38,41 +45,53 @@ impl PreppedMessage {
             }
         }
         PreppedMessage {
-            title, journal, content, pmid, doi
+            title,
+            journal,
+            content,
+            pmid,
+            doi,
         }
     }
 
     fn format_link_markdownv2(text: &str, baseurl: &str, pmid_or_doi: &str) -> String {
         markdown::link(
-            &markdown::escape(
-                &format!("{}{}", baseurl, pmid_or_doi)),
-            &markdown::escape(text))
+            &markdown::escape(&format!("{}{}", baseurl, pmid_or_doi)),
+            &markdown::escape(text),
+        )
     }
 
     pub fn format_as_markdownv2(&self) -> String {
         let mut result = "".to_string();
         let mut footer;
         if let Some(doi) = &self.doi {
-            result.push_str(
-                &PreppedMessage::format_link_markdownv2(&self.title, "https://doi.org/", doi));
+            result.push_str(&PreppedMessage::format_link_markdownv2(
+                &self.title,
+                "https://doi.org/",
+                doi,
+            ));
             result.push_str("\n");
             if let Some(journal) = &self.journal {
-                result.push_str(
-                    &markdown::italic(&markdown::escape(journal)));
+                result.push_str(&markdown::italic(&markdown::escape(journal)));
             }
             if let Some(content) = &self.content {
                 result.push_str("\n\n");
-                result.push_str(&PreppedMessage::format_abstract(&content, ParseMode::MarkdownV2));
+                result.push_str(&PreppedMessage::format_abstract(
+                    &content,
+                    ParseMode::MarkdownV2,
+                ));
             }
-            footer = 
-            PreppedMessage::format_link_markdownv2("Link", "https://doi.org/", doi);
+            footer = PreppedMessage::format_link_markdownv2("Link", "https://doi.org/", doi);
 
             if let Some(pmid) = &self.pmid {
-                footer.push_str(
-                    &format!(
-                        " \\| {} \\| {}",
-                        &PreppedMessage::format_link_markdownv2("PubMed", "https://pubmed.ncbi.nlm.nih.gov/", pmid),
-                        &PreppedMessage::format_link_markdownv2("QxMD", "https://qxmd.com/r/", pmid)));
+                footer.push_str(&format!(
+                    " \\| {} \\| {}",
+                    &PreppedMessage::format_link_markdownv2(
+                        "PubMed",
+                        "https://pubmed.ncbi.nlm.nih.gov/",
+                        pmid
+                    ),
+                    &PreppedMessage::format_link_markdownv2("QxMD", "https://qxmd.com/r/", pmid)
+                ));
             }
             result.push_str("\n");
             result.push_str(&footer);
@@ -81,8 +100,7 @@ impl PreppedMessage {
         } else {
             result.push_str(&markdown::escape(&self.title));
             if let Some(journal) = &self.journal {
-                result.push_str(
-                    &markdown::italic(&markdown::escape(journal)));
+                result.push_str(&markdown::italic(&markdown::escape(journal)));
             }
             if let Some(content) = &self.content {
                 result.push_str("\n\n");
@@ -101,24 +119,22 @@ impl PreppedMessage {
     }
 
     fn format_abstract(content: &str, parsemode: ParseMode) -> String {
-        // Formats the abstract (escapes invalid characters, bolds RESULT: etc) 
+        // Formats the abstract (escapes invalid characters, bolds RESULT: etc)
         if parsemode == ParseMode::MarkdownV2 {
             let mut content = markdown::escape(content);
-            content = content.replace(r"&lt;", "<");
-            content = content.replace(r"&gt;", ">");
+            content = content.replace(r"&lt;", r"\<");
+            content = content.replace(r"&gt;", r"\>");
 
-            let re = Regex::new(r"(?m)^[A-Z ]+:").unwrap();
+            let re = Regex::new(r"(?m)^([A-Z ]+:) ").unwrap();
             re.replace_all(&content, |caps: &Captures| -> String {
-                markdown::bold(&caps[0])
-            }).to_string()
+                format!("\n{} ", markdown::bold(&caps[1]))
+            })
+            .to_string()
         } else {
             todo!()
         }
-        
     }
 }
-
-
 
 pub fn format_item_content(item: &Item) -> String {
     let mut title = html2md::rewrite_html(item.title().unwrap_or(""), false);
@@ -136,7 +152,6 @@ pub fn format_item_content(item: &Item) -> String {
     }
     let source = item.dublin_core_ext().unwrap().sources().iter().next();
 
-    
     // # Adds newlines to **Conclusion:**
     // content = re.sub(r'(\w\.)(?: |\n)(\*\*\w)', r'\1\n\n\2', content)
     // content = re.sub(r'(\w[),:\w])\n(\(?\[?\w)', #fix newlines
@@ -152,27 +167,26 @@ pub fn format_item_content(item: &Item) -> String {
     let abstr_start = content.find("*ABSTRACT*\n");
     let pmid_start = content.find("PMID:[").unwrap();
     if let Some(x) = abstr_start {
-        content = content[x + 11 ..pmid_start].to_string();
+        content = content[x + 11..pmid_start].to_string();
     } else {
-        return "No abstract.".to_string()
+        return "No abstract.".to_string();
     }
 
     if source.is_some() {
-        content = format!(
-            "_{}_\n\n{}", source.unwrap(), content);
+        content = format!("_{}_\n\n{}", source.unwrap(), content);
     }
     if doi.is_some() {
         title = format!("[{}](https://doi.org/{})", title, doi.unwrap());
-        content = format!(
-            "{}\n[link](https://doi.org/{}) | ", content, doi.unwrap());
+        content = format!("{}\n[link](https://doi.org/{}) | ", content, doi.unwrap());
     }
     if pmid.is_some() {
         content = format!(
             "{}[Pubmed](https://pubmed.ncbi.nlm.nih.gov/{}/) | \
-[QxMD](https://qxmd.com/r/{})", content, pmid.unwrap(), pmid.unwrap());
+[QxMD](https://qxmd.com/r/{})",
+            content,
+            pmid.unwrap(),
+            pmid.unwrap()
+        );
     }
     return format!("{title}\n{content}");
 }
-
-
-

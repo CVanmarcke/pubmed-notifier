@@ -1,44 +1,40 @@
-use std::collections::HashSet;
-use std::error::Error;
 use rss::Channel;
 use rss::Item;
+use std::collections::HashSet;
+use std::error::Error;
 
 // "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=15&name=Insights%20Imaging&utm_campaign=journals"
 
 pub async fn get_channel(link: &str) -> Result<Channel, Box<dyn Error>> {
-    let content = reqwest::get(link)
-        .await?
-        .bytes()
-        .await?;
+    let content = reqwest::get(link).await?.bytes().await?;
     let channel = Channel::read_from(&content[..])?;
     Ok(channel)
 }
 
 pub fn item_contains_keyword(item: &Item, keywords: &HashSet<String>) -> bool {
     for keyword in keywords {
-	if item.content().unwrap_or("").contains(keyword) |
-            item.title().unwrap_or("").to_lowercase().contains(keyword) {
+        if item.content().unwrap_or("").contains(keyword)
+            | item.title().unwrap_or("").to_lowercase().contains(keyword)
+        {
             log::debug!("Keyword matched: {keyword}");
-	    return true;
-	}
+            return true;
+        }
     }
     false
 }
-
 
 #[cfg(test)]
 mod tests {
     use crate::formatter::PreppedMessage;
 
     use super::*;
-    use rss::{ ItemBuilder, Channel };
+    use rss::{Channel, ItemBuilder};
     use std::fs;
     use std::fs::File;
     use std::io::BufReader;
 
-
     // #[tokio::test]
-    async fn _get_feed_test(){
+    async fn _get_feed_test() {
         let link = "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=5&name=Insights%20Imaging&utm_campaign=journals";
         let result = get_channel(link).await;
         assert!(result.is_ok());
@@ -67,9 +63,15 @@ mod tests {
             .title("Title of the item".to_string())
             .content("Content of the item.".to_string())
             .build();
-	let keywords = vec!["should", "not", "contain"].into_iter().map(|s| s.to_string()).collect();
-	let keywords2 = vec!["should", "contain", "keyword", "content"].into_iter().map(|s| s.to_string()).collect();
-	assert!(!item_contains_keyword(&item, &keywords));
-	assert!(!item_contains_keyword(&item, &keywords2));
+        let keywords = vec!["should", "not", "contain"]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+        let keywords2 = vec!["should", "contain", "keyword", "content"]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert!(!item_contains_keyword(&item, &keywords));
+        assert!(!item_contains_keyword(&item, &keywords2));
     }
 }

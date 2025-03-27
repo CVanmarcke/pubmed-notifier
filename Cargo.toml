@@ -2,6 +2,9 @@
 name = "rssnotify"
 version = "0.1.0"
 edition = "2024"
+description = "Fetcher and sender through telegram of pubmed RSS feeds."
+license = "MIT OR Apache-2.0" # Whatever
+# , readme, and homepage
 
 [profile.dev]
 incremental = true
@@ -33,3 +36,20 @@ chrono = {version = "0.4.39", features = ["clock"]}
 redis = { version = "*", features = ["tokio-comp"] }
 rusqlite = { version = "*", features = ["backup"]}
 tokio-rusqlite = "0.6.0"
+toml = "0.8.20"
+expanduser = "1.2.2"
+# shellexpand = "3.1.0"
+
+[package.metadata.deb]
+maintainer = "C Vanmarcke"
+copyright = "2025, C Vanmarcke"
+extended-description = """\
+A CLI based tool to get pubmed based RSS feeds and send them through telegram."""
+depends = "$auto"
+# section = "utility"
+# priority = "optional"
+assets = [
+    # both syntaxes are equivalent:
+    ["target/release/rssnotify", "usr/bin/", "755"],
+    # { source = "README.md", dest = "usr/share/doc/cargo-deb/README", mode = "644"},
+]

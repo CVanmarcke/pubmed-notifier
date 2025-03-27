@@ -1,17 +1,17 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::env;
-use std::process;
+use chrono::{Local, NaiveTime, TimeDelta, Timelike};
 use rssnotify::config::Config;
 use rssnotify::datastructs::ChannelLookupTable;
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
-use tokio_rusqlite::Connection;
-use teloxide::prelude::*;
-use teloxide::Bot;
-use chrono::{Local, NaiveTime, TimeDelta, Timelike};
-use rssnotify::{ console_message_handler, db, repl_message_handler} ;
+use rssnotify::{console_message_handler, db, repl_message_handler};
+use std::path::Path;
+use std::{env, fs};
+use std::process;
+use std::sync::Arc;
 use std::time::Duration;
+use teloxide::Bot;
+use teloxide::prelude::*;
+use tokio_rusqlite::Connection;
 
 // op server in background starten
 // https://www.scaler.com/topics/how-to-run-process-in-background-linux/
@@ -58,9 +58,9 @@ async fn main() {
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Info);
 
-    let config = Config::build(&env::args().collect::<Vec<String>>())
+    let config = Config::build_from_toml_and_args(&env::args().collect::<Vec<String>>())
         .unwrap_or_else(|err| {
-            log::error!("Problem parsing arguments: {err}");
+            log::error!("Problem parsing arguments: {err:?}");
             process::exit(1);
         });
     log::set_max_level(config.log_level);
@@ -70,10 +70,21 @@ async fn main() {
     if config.db_path.is_file() {
         conn = db::sqlite::open(config.db_path.to_str().unwrap()).unwrap();
     } else {
-        conn = db::sqlite::new(config.db_path.to_str().unwrap()).unwrap();
+        // if let Some(p) = config.db_path.parent() {
+        //     fs::create_dir_all(p);
+        // }
+        log::info!("Creating new database at {}", &config.db_path.display());
+        fs::create_dir_all(config.db_path.parent().unwrap_or(Path::new(""))).unwrap();
+        conn = db::sqlite::new(&config.db_path.display().to_string()).unwrap();
+        let r = db::sqlite::update_channels(&conn).await;
+        if r.is_err() {
+            log::error!("Error when updating the channel!\n{:?}", r.err().unwrap())
+        }
     }
 
-    let aconn = Connection::open(config.db_path.to_str().unwrap()).await.unwrap();
+    let aconn = Connection::open(config.db_path.to_str().unwrap())
+        .await
+        .unwrap();
     let arcconn = Arc::new(aconn);
 
     if !config.persistent {
@@ -87,7 +98,7 @@ async fn main() {
             send_new_and_update_users(&conn, &ConsoleSender {}).await;
         } else {
             let bot = Bot::new(config.bot_token.as_ref().unwrap());
-            send_new_and_update_users(&conn, &TelegramSender {bot}).await;
+            send_new_and_update_users(&conn, &TelegramSender { bot }).await;
         }
         process::exit(1);
     }
@@ -96,7 +107,7 @@ async fn main() {
         interactive_bot(&conn).await
     } else {
         if config.debugmode {
-            looper(config.update_time, &Arc::clone(&arcconn), ConsoleSender {}).await
+            looper(&config, &Arc::clone(&arcconn), ConsoleSender {}).await
         } else {
             log::info!("Starting command bot");
             let bot = Bot::new(config.bot_token.as_ref().unwrap());
@@ -104,78 +115,92 @@ async fn main() {
             let state = Arc::clone(&arcconn);
             // Start dispatcher as a seperate task
             // https://users.rust-lang.org/t/dependency-injection-callback-telegram-bot/88131
-            tokio::task::spawn( async {
-                Dispatcher::builder(bot,
-                    Update::filter_message().endpoint(repl_message_handler))
+            tokio::task::spawn(async {
+                Dispatcher::builder(bot, Update::filter_message().endpoint(repl_message_handler))
                     .dependencies(dptree::deps![state])
                     .build()
-                    .dispatch().await });
+                    .dispatch()
+                    .await
+            });
             log::info!("Command bot started");
 
             let bot = Bot::new(config.bot_token.as_ref().unwrap());
             log::info!("Starting scheduler");
-            looper(config.update_time, &Arc::clone(&arcconn), TelegramSender {bot}).await
+            looper(
+                &config,
+                &Arc::clone(&arcconn),
+                TelegramSender { bot },
+            )
+            .await
         }
     }
-
 }
 
-pub async fn looper<'a, S>(times: Vec<NaiveTime>, conn: &'a Connection, sender: S) -> ()
+pub async fn looper<'a, S>(config: &Config, conn: &'a Connection, sender: S) -> ()
 where
-S: Sender + Send + Sync + 'a + 'static,
- {
-     let mut execute_next = false;
-     let max_wait_time = 5 * 60;
-     let senderarc = Arc::new(sender);
-     loop {
-         let now = Local::now().naive_local().time();
-         let wait_time: u64;
-         let duration = times.iter()
-             .map(|dt| dt.signed_duration_since(now))
-             .filter(|dt| dt > &TimeDelta::zero())
-             .min();
+    S: Sender + Send + Sync + 'a + 'static,
+{
+    let times: &Vec<NaiveTime> = &(config.update_time);
 
-         if duration.is_none() {
-             // of max wait time
-             wait_time = (86399 - now.num_seconds_from_midnight()).into();
-         } else {
-             // is always positive as we filtered that in de duration map
-             wait_time = u64::try_from(duration.unwrap().num_seconds()).unwrap();
-         }
-         if wait_time < max_wait_time {
-             execute_next = true;
+    let mut execute_next = false;
+    let max_wait_time = 5 * 60;
+    let senderarc = Arc::new(sender);
+    loop {
+        let now = Local::now().naive_local().time();
+        let wait_time: u64;
+        let duration = times
+            .iter()
+            .map(|dt| dt.signed_duration_since(now))
+            .filter(|dt| dt > &TimeDelta::zero())
+            .min();
 
-         }
-         tokio::time::sleep(Duration::from_secs(wait_time)).await;
-         let asender = Arc::clone(&senderarc);
-         if execute_next {
-             if let Err(e) = 
-                conn.call(move |conn| {
+        if duration.is_none() {
+            // of max wait time
+            wait_time = (86399 - now.num_seconds_from_midnight()).into();
+        } else {
+            // is always positive as we filtered that in de duration map
+            wait_time = u64::try_from(duration.unwrap().num_seconds()).unwrap();
+        }
+        if wait_time < max_wait_time {
+            execute_next = true;
+        }
+        tokio::time::sleep(Duration::from_secs(wait_time)).await;
+        let asender = Arc::clone(&senderarc);
+        if execute_next {
+            if let Err(e) = conn
+                .call(move |conn| {
                     let rt = tokio::runtime::Runtime::new().unwrap();
-                    rt.block_on(async { 
+                    rt.block_on(async {
                         db::sqlite::update_channels(conn).await?;
-                        // .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))?;
                         send_new_and_update_users(conn, &(*asender)).await
                     })?;
                     Ok(())
-                }).await {
-                    log::error!("Error updating the channels: {e:?}")
-                }
-             // send all new
-         }
-         execute_next = false;
-     }
- }
+                })
+                .await
+            {
+                log::error!("Error updating the channels: {e:?}")
+            }
+        }
+        execute_next = false;
+    }
+}
 
-async fn send_new_and_update_users<S: Sender>(conn: &rusqlite::Connection, sender: &S) ->  Result<(), rusqlite::Error>
-{
+async fn send_new_and_update_users<S: Sender>(
+    conn: &rusqlite::Connection,
+    sender: &S,
+) -> Result<(), rusqlite::Error> {
     let mut users = db::sqlite::get_users(conn)?;
-    let feeds = ChannelLookupTable::from_vec(db::sqlite::get_feeds(conn)?)
-        .map_err(|e| rusqlite::Error::InvalidParameterName(format!("Error when updating tables: {e:?}")))?;
+    let feeds = ChannelLookupTable::from_vec(db::sqlite::get_feeds(conn)?).map_err(|e| {
+        rusqlite::Error::InvalidParameterName(format!("Error when updating tables: {e:?}"))
+    })?;
     let mut result = Vec::new();
     for user in users.iter_mut() {
         if let Some(items) = user.get_new_items(&feeds) {
-            log::info!("{} new items for user {} to send", items.len(), user.chat_id);
+            log::info!(
+                "{} new items for user {} to send",
+                items.len(),
+                user.chat_id
+            );
             // TODO result handling
             sender.send_items(&user, &items).await;
             user.update_last_pushed();
@@ -189,18 +214,25 @@ async fn send_new_and_update_users<S: Sender>(conn: &rusqlite::Connection, sende
 }
 
 async fn interactive_bot(conn: &rusqlite::Connection) {
-// async fn interactive_bot (userdata: Arc<Mutex<Vec<User>>>, feeddata: Arc<Mutex<ChannelLookupTable>>) {
+    // async fn interactive_bot (userdata: Arc<Mutex<Vec<User>>>, feeddata: Arc<Mutex<ChannelLookupTable>>) {
     println!("Starting interactive mode");
 
     println!("Enter chat_id to exec commands as");
     let mut line = String::new();
-    std::io::stdin().read_line(&mut line).expect("Did not enter a correct string");
-    let chat_id: i64 = line.trim().parse().expect("Invalid chat id! Was it a number?");
+    std::io::stdin()
+        .read_line(&mut line)
+        .expect("Did not enter a correct string");
+    let chat_id: i64 = line
+        .trim()
+        .parse()
+        .expect("Invalid chat id! Was it a number?");
     line.clear();
 
     loop {
         println!("Enter command: ");
-        std::io::stdin().read_line(&mut line).expect("Did not enter a correct string");
+        std::io::stdin()
+            .read_line(&mut line)
+            .expect("Did not enter a correct string");
         let _ = console_message_handler(chat_id, &line.trim(), &conn).await;
         // let _ = console_message_handler(chat_id, &line.trim(), Arc::clone(&userdata), Arc::clone(&feeddata)).await;
         line.clear();
@@ -232,7 +264,7 @@ impl log::Log for LoggerWithSender {
             if record.level() == log::Level::Error {
                 let message = format!("Error!\n{}", record.args());
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                if let Err(e) = rt.block_on(async { 
+                if let Err(e) = rt.block_on(async {
                     TelegramSender::send_message_bot(&self.0, ChatId(self.1), &message).await
                 }) {
                     println!("Got an error when trying to send an error to the telegram admin!");
@@ -245,11 +277,9 @@ impl log::Log for LoggerWithSender {
     fn flush(&self) {}
 }
 
-
-
 #[cfg(test)]
 mod tests {
-    use chrono::prelude::*;   
+    use chrono::prelude::*;
 
     #[test]
     fn test_date() {
