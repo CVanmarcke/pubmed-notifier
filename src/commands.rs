@@ -20,7 +20,7 @@ pub enum Command {
     #[command(description = "List the available feeds.", parse_with = "split")]
     Feeds,
     #[command(description = "List how many collections you have.")]
-    CollectionAmount,
+    Collections,
     #[command(
         description = "[collection] - Show the content of a collection (journals, whitelist keywords and blacklist keywords). Provide the collection number, starting at 0 (eg \"/collection 0\")",
         parse_with = "split"
@@ -108,7 +108,7 @@ pub async fn message_handler(
     match command {
           Command::Start => Ok("Welcome to the telegram pubmed notifier bot! Send /help for a list of available commands.".to_string()),
           Command::Help => Ok(Command::descriptions().to_string()),
-          Command::CollectionAmount => Ok(format!("{}", user.rss_lists.len())) ,
+          Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num]", user.rss_lists.len())) ,
           Command::Collection { collection_index  } => show_collection(conn, user, collection_index),
           Command::Feeds => list_feeds(conn),
           Command::NewFeed { name, link } =>  newfeed(conn, name, link),
@@ -301,7 +301,9 @@ fn newfeed(conn: &Connection, name: String, link: String) -> CustomResult<String
 }
 
 fn new_collection(conn: &Connection, user: &mut User) -> CustomResult<String> {
-    user.rss_lists.push(UserRssList::new());
+    let mut collection = UserRssList::new();
+    collection.blacklist = preset::merge_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist);
+    user.rss_lists.push(collection);
     db::sqlite::update_user(conn, user)?;
     Ok(format!(
         "Created new collection with index {}",

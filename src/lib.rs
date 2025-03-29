@@ -187,10 +187,12 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
 mod tests {
 
     use super::*;
+    use channelwrapper::ChannelWrapper;
+    use chrono::{DateTime, Datelike, Local, TimeDelta};
     use datastructs::{ChannelLookupTable, User, UserRssList};
+    use formatter::PreppedMessage;
     use preset::Keywords;
-    use std::collections::HashSet;
-    use teloxide_tests::{MockBot, MockMessageText};
+    use rsshandler::item_contains_keyword;
 
     #[test]
     fn test_write_userdata() {
@@ -209,20 +211,53 @@ mod tests {
         write_data(&userlist, &path).expect("Error writing data");
     }
 
-    // #[tokio::test]
-    // async fn test_hello_world() {  // A testing bot dispatch
-    //     let bot = MockBot::new(MockMessageText::new().text("/username myname"), handler_tree());
-    //     bot.dispatch().await;
-    //     let responses = bot.get_responses();
-    //     let message = responses.sent_messages.last().unwrap();
-    //     // This is a regular teloxide::types::Message!
-    //     assert_eq!(message.text(), Some("Your username is @myname."));
-    // }
-
     #[test]
     fn test_write_feedlist() {
         let list = ChannelLookupTable::from_vec(make_feedlist()).unwrap();
         let s = serde_json::to_string(&list).unwrap();
         write_data(&s, "feedlist.json").expect("Error writing data");
+    }
+
+    #[tokio::test]
+    async fn test_whitelist() {
+        let mut collection = UserRssList::new();
+        collection.whitelist = preset::merge_preset_with_set(Keywords::Uro, &collection.whitelist);
+        collection.whitelist = preset::merge_preset_with_set(Keywords::Abdomen, &collection.whitelist);
+        collection.blacklist = preset::merge_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist);
+        collection.blacklist = preset::merge_preset_with_set(Keywords::AIBlacklist, &collection.blacklist);
+        collection.feeds = preset::radiology_journals()
+            .into_iter()
+            .chain(collection.feeds.clone())
+            .collect();
+        let last_pushed = Local::now() - TimeDelta::days(3);
+        println!("printing from {}", last_pushed);
+
+        let conn = db::sqlite::open("database.db3").unwrap();
+        // db::sqlite::update_channels(&conn).await;
+
+        let mut to_send = Vec::new();
+        for uid in &collection.feeds {
+            let pmfeed = db::sqlite::get_feed(&conn, uid).unwrap().unwrap();
+            let mut items = Vec::new();
+            for item in pmfeed.channel.items() {
+                if let Some(pub_date) = item.pub_date() {
+                    if DateTime::parse_from_rfc2822(&pub_date).unwrap() > last_pushed {
+                        items.push(item);
+                    }
+                }
+            }
+            items
+                .into_iter()
+                .inspect(|item| {
+                    println!("--------------------------------------");
+                    println!("{}", PreppedMessage::build(item)
+                        .format_as_markdownv2());
+                })
+                .filter(|item| item_contains_keyword(item, &collection.whitelist))
+                .inspect(|item| println!("- Passed whitelist"))
+                .filter(|item| !item_contains_keyword(item, &collection.blacklist))
+                .inspect(|item| println!("- Passed blacklist"))
+                .for_each(|item| to_send.push(item.clone()))
+        }
     }
 }

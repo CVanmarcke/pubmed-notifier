@@ -34,7 +34,7 @@ pub struct UserRssList {
     pub blacklist: HashSet<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PubmedFeed {
     pub name: String,
     pub uid: Option<u32>,
@@ -80,8 +80,7 @@ impl User {
                 if let Some(pmfeed) = feedmap.get(uid) {
                     // TODO unwrap
                     if let Ok(items) = pmfeed.channel.get_new_items(&self.last_pushed) {
-                        log::info!("Collected {} new items in feed {}", items.len(), uid);
-
+                        log::trace!("Collected {} new items in feed {} for user {}", items.len(), uid, self.chat_id);
                         // for item in items
                         items
                             .into_iter()
@@ -133,10 +132,6 @@ impl PubmedFeed {
     pub async fn update_channel(&mut self) -> Result<&PubmedFeed, Box<dyn Error + Sync + Send>> {
         let newchannel = self.download_channel().await?;
         self.channel = newchannel;
-        // match self {
-        //     PubmedFeed::Journal {channel, .. } => *channel = newchannel,
-        //     PubmedFeed::Query {channel, ..} => *channel = newchannel
-        // }
         log::info!("Succesfully updated channel {}", &self.name);
         Ok(self)
     }

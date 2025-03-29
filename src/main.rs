@@ -1,4 +1,8 @@
 use chrono::{Local, NaiveTime, TimeDelta, Timelike};
+use log::LevelFilter;
+use log4rs::append::console::ConsoleAppender;
+use log4rs::append::file::FileAppender;
+use log4rs::config::{Appender, Root};
 use rssnotify::config::Config;
 use rssnotify::datastructs::ChannelLookupTable;
 use rssnotify::senders::TelegramSender;
@@ -52,18 +56,32 @@ use tokio_rusqlite::Connection;
 
 #[tokio::main]
 async fn main() {
-    static LOGGER: SimpleLogger = SimpleLogger;
-    // static LOGGER: LoggerWithSender = LoggerWithSender;
+    let stdout = ConsoleAppender::builder().build();
 
-    log::set_logger(&LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Info);
+    let temp_log_config = log4rs::Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
+        .unwrap();
+    let logger_handle = log4rs::init_config(temp_log_config).unwrap();
 
     let config = Config::build_from_toml_and_args(&env::args().collect::<Vec<String>>())
         .unwrap_or_else(|err| {
             log::error!("Problem parsing arguments: {err:?}");
             process::exit(1);
         });
-    log::set_max_level(config.log_level);
+
+    log::set_max_level(config.log_level.clone());
+    let stdout = ConsoleAppender::builder().build();
+    let filelogs = FileAppender::builder()
+        .build(&config.log_path)
+        .unwrap();
+    let log_config = log4rs::Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .appender(Appender::builder().build("logfile", Box::new(filelogs)))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
+        .unwrap();
+    logger_handle.set_config(log_config);
+
     config.log_structs();
 
     let conn;
@@ -95,10 +113,15 @@ async fn main() {
             process::exit(1);
         }
         if config.debugmode {
-            send_new_and_update_users(&conn, &ConsoleSender {}).await;
+            if let Err(e) = send_new_and_update_users(&conn, &ConsoleSender {}).await {
+                log::error!("Error when sending new articles: {e:?}");
+            }
         } else {
             let bot = Bot::new(config.bot_token.as_ref().unwrap());
-            send_new_and_update_users(&conn, &TelegramSender { bot }).await;
+            if let Err(e) = send_new_and_update_users(&conn, &TelegramSender { bot }).await {
+                log::error!("Error when sending new articles: {e:?}");
+            }
+            
         }
         process::exit(1);
     }
@@ -239,43 +262,19 @@ async fn interactive_bot(conn: &rusqlite::Connection) {
     }
 }
 
-struct SimpleLogger;
+// struct SimpleLogger;
+// impl log::Log for SimpleLogger {
+//     fn enabled(&self, metadata: &log::Metadata) -> bool {
+//         metadata.level() <= log::max_level()
+//     }
+//     fn log(&self, record: &log::Record) {
+//         if self.enabled(record.metadata()) {
+//             println!("{} - {}", record.level(), record.args());
+//         }
+//     }
+//     fn flush(&self) {}
+// }
 
-impl log::Log for SimpleLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::max_level()
-    }
-    fn log(&self, record: &log::Record) {
-        if self.enabled(record.metadata()) {
-            println!("{} - {}", record.level(), record.args());
-        }
-    }
-    fn flush(&self) {}
-}
-
-struct LoggerWithSender(Bot, i64);
-impl log::Log for LoggerWithSender {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::max_level()
-    }
-    fn log(&self, record: &log::Record) {
-        if self.enabled(record.metadata()) {
-            println!("{} - {}", record.level(), record.args());
-            if record.level() == log::Level::Error {
-                let message = format!("Error!\n{}", record.args());
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                if let Err(e) = rt.block_on(async {
-                    TelegramSender::send_message_bot(&self.0, ChatId(self.1), &message).await
-                }) {
-                    println!("Got an error when trying to send an error to the telegram admin!");
-                    println!("Original error:\n{}", record.args());
-                    println!("Error when trying to send:\n{:?}", e);
-                };
-            }
-        }
-    }
-    fn flush(&self) {}
-}
 
 #[cfg(test)]
 mod tests {
@@ -289,4 +288,7 @@ mod tests {
         let then = DateTime::parse_from_rfc2822("Thu, 06 Feb 2025 06:00:00 -0500").unwrap();
         assert!(now > then);
     }
+
 }
+
+

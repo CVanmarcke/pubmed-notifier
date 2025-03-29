@@ -5,7 +5,7 @@ use rss::Item;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
 use std::ops::Deref;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ChannelWrapper(Channel);
 
 impl ChannelWrapper {
@@ -27,11 +27,6 @@ impl ChannelWrapper {
     pub fn get_new_items<'a>(&'a self, fromdate: &String) -> Result<Vec<&'a Item>, ParseError> {
         let prev: DateTime<FixedOffset> = DateTime::parse_from_rfc2822(&fromdate)?;
         let mut new_items: Vec<&Item> = Vec::new();
-        // self.items().iter().filter(
-        //     |item|
-        //     if let Some(pub_date) = item.pub_date() {
-        //         DateTime::parse_from_rfc2822(&pub_date).unwrap() > prev
-        //     } else { false }).collect();
         for item in self.items() {
             if let Some(pub_date) = item.pub_date() {
                 if DateTime::parse_from_rfc2822(&pub_date).unwrap() > prev {

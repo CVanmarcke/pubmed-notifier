@@ -37,7 +37,6 @@ const DEFAULT_BLACKLIST: &[&str] = &[
     "Letter to the Editor",
     "Erratum for: ",
     "Editorial Comment",
-    "Online ahead of print",
 ];
 
 const AI_BLACKLIST: &[&str] = &[
@@ -81,6 +80,8 @@ const DEFAULT_ABDOMEN_WHITELIST: &[&str] = &[
     "uterine",
     "ovary",
     "ovarian",
+    "omentum",
+    "omental",
     "adnex",
     "cervix",
     "vagina",

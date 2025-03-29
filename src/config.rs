@@ -10,12 +10,13 @@ use expanduser::expanduser;
 pub struct Config {
     pub debugmode: bool,
     pub interactive: bool,
-    pub filepath: PathBuf,
+    pub config_path: PathBuf,
     pub db_path: PathBuf,
     pub bot_token: Option<String>,
     pub persistent: bool,
     pub update_time: Vec<NaiveTime>,
     pub log_level: log::LevelFilter,
+    pub log_path: PathBuf,
     pub admin: Option<i64>,
 }
 impl Default for Config {
@@ -23,9 +24,9 @@ impl Default for Config {
         Config {
             debugmode: false,
             interactive: false,
-            // TODO support for config.toml
-            filepath: PathBuf::from(expanduser("~/.rssnotify/config.toml").unwrap()),
-            db_path: PathBuf::from(expanduser("~/.rssnotify/database.db3").unwrap()),
+            config_path: PathBuf::from(expanduser("~/.config/rssnotify/config.toml").unwrap()),
+            db_path: PathBuf::from(expanduser("~/.config/rssnotify/database.db3").unwrap()),
+            log_path: PathBuf::from(expanduser("~/.config/rssnotify/log.txt").unwrap()),
             bot_token: None,
             persistent: true,
             update_time: parse_update_time("9-17").unwrap(),
@@ -55,7 +56,7 @@ impl Config {
             ..Default::default()
         };
         config.apply_args(args)?; // Populate with args to get file name
-        config.apply_toml(&config.filepath.clone().as_path())?;
+        config.apply_toml(&config.config_path.clone().as_path())?;
         config.apply_args(args)?; // Overwrite with arguments
 
         Ok(config)
@@ -71,11 +72,15 @@ impl Config {
             match key.as_str() {
                 "admin" => self.admin = table["admin"].as_integer(),
                 "bot_token" => match table["bot_token"].as_str() {
-                    Some(token) => self.bot_token = Some(token.to_string()),
+                    Some(s) => self.bot_token = Some(s.to_string()),
                     None => return Err("Invalid value provided to bot_token in the config file!".into()),
                 },
                 "db_path" => if let Some(db_path) = table["db_path"].as_str() {
-                    self.db_path = PathBuf::from(expanduser(db_path.to_string())?)
+                    self.db_path = PathBuf::from(expanduser(db_path)?)
+                },
+                "log_path" => match table["log_path"].as_str() {
+                    Some(s) => self.log_path = PathBuf::from(expanduser(s)?),
+                    None => return Err("Invalid value provided to log_path in the config file!".into()),
                 },
                 "update_time" => if let Some(update_time) = table["update_time"].as_str() {
                     self.update_time = parse_update_time(update_time).unwrap()
@@ -99,7 +104,7 @@ impl Config {
                     None => return Err("No timestamps provided after -u!".into()),
                 },
                 "-f" => match it.next() {
-                    Some(f) => self.filepath = PathBuf::from(expanduser(f)?),
+                    Some(f) => self.config_path = PathBuf::from(expanduser(f)?),
                     None => return Err("No config file name provided after -f!".into()),
                 },
                 "-p" | "--db-path" => match it.next() {
@@ -121,16 +126,17 @@ impl Config {
     }
 
     pub fn log_structs(&self) -> () {
-        log::info!("Debug mode: {}", self.debugmode);
-        log::info!("Interactive mode: {}", self.interactive);
-        log::info!("Filepath: {:#?}", self.filepath);
-        log::info!("Database path: {:#?}", self.db_path);
         log::info!(
             "bot_token: {}",
             self.bot_token.as_ref().unwrap_or(&"".to_string())
         );
         log::info!("Persistent: {}", self.persistent);
         log::info!("Update times: {:?}", self.update_time);
+        log::info!("Interactive mode: {}", self.interactive);
+        log::info!("Debug mode: {}", self.debugmode);
+        log::info!("Filepath: {:#?}", self.config_path);
+        log::info!("Database path: {:#?}", self.db_path);
+        log::info!("Log path: {:#?}", self.log_path);
         log::info!("Log level: {:?}", self.log_level);
     }
 }
@@ -205,7 +211,7 @@ mod tests {
     fn test_config() {
         let result = Config::build(&vec!["".to_string()]).expect("Error!");
         assert_eq!(result.debugmode, false);
-        assert_eq!(result.filepath.to_str(), Some("config.json"));
+        assert_eq!(result.config_path.to_str(), Some("config.json"));
 
         let result = Config::build(&vec!["aaa".to_string(), "-f".to_string()]);
         assert!(result.is_err());
