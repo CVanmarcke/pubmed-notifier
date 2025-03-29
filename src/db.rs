@@ -157,7 +157,6 @@ pub mod sqlite {
     pub fn update_feed(conn: &Connection, feed: &PubmedFeed) -> Result<u32, rusqlite::Error> {
         let channel = serde_json::to_string(&feed.channel)
             .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?;
-        log::info!("Updating feed {}", feed.uid.unwrap_or(0));
         if feed.uid.is_some() {
             let mut stmt = conn.prepare_cached(
                 "UPDATE feeds

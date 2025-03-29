@@ -130,9 +130,10 @@ impl PubmedFeed {
     }
 
     pub async fn update_channel(&mut self) -> Result<&PubmedFeed, Box<dyn Error + Sync + Send>> {
+        log::info!("Updating feed {} ({:?})...", &self.name, &self.uid);
         let newchannel = self.download_channel().await?;
         self.channel = newchannel;
-        log::info!("Succesfully updated channel {}", &self.name);
+        log::info!("... Succesfully");
         Ok(self)
     }
 

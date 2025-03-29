@@ -1,5 +1,9 @@
 use std::collections::HashSet;
 
+pub enum Preset {
+    Keyword(Keywords),
+    Journal(Journals)
+}
 
 pub enum Keywords {
     Uro,
@@ -108,6 +112,20 @@ pub fn get_preset_keywords(keywords: Keywords) -> HashSet<String> {
         .iter()
         .map(|x| x.to_string())
         .collect::<HashSet<String>>()
+}
+
+// pub fn get_preset<T>(preset: Preset) -> HashSet<T> {
+//     match preset {
+//         Preset::Journal( j ) => get_preset_journals(j),
+//         Preset::Keyword( k ) => get_preset_keywords(k),
+//     }
+// }
+
+pub fn get_preset_journals(journals: Journals) -> HashSet<u32> {
+    HashSet::from(
+        match journals {
+            Journals::Radiology => DEFAULT_RADIOLOGY_JOURNALS,
+        })
 }
 
 pub fn merge_preset_with_set(keywords: Keywords, set: &HashSet<String>)  -> HashSet<String> {

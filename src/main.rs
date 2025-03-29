@@ -2,7 +2,7 @@ use chrono::{Local, NaiveTime, TimeDelta, Timelike};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Root};
+use log4rs::config::{Appender, Logger, Root};
 use rssnotify::config::Config;
 use rssnotify::datastructs::ChannelLookupTable;
 use rssnotify::senders::TelegramSender;
@@ -60,7 +60,7 @@ async fn main() {
 
     let temp_log_config = log4rs::Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
         .unwrap();
     let logger_handle = log4rs::init_config(temp_log_config).unwrap();
 
@@ -78,7 +78,13 @@ async fn main() {
     let log_config = log4rs::Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .appender(Appender::builder().build("logfile", Box::new(filelogs)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Warn))
+        // .logger(Logger::builder()
+        //     .appender("logfile")
+        //     .additive(false)
+        //     .build("filelogger", LevelFilter::Info))
+        .build(Root::builder()
+            .appender("stdout")
+            .appender("logfile").build(LevelFilter::Info))
         .unwrap();
     logger_handle.set_config(log_config);
 
@@ -88,9 +94,6 @@ async fn main() {
     if config.db_path.is_file() {
         conn = db::sqlite::open(config.db_path.to_str().unwrap()).unwrap();
     } else {
-        // if let Some(p) = config.db_path.parent() {
-        //     fs::create_dir_all(p);
-        // }
         log::info!("Creating new database at {}", &config.db_path.display());
         fs::create_dir_all(config.db_path.parent().unwrap_or(Path::new(""))).unwrap();
         conn = db::sqlite::new(&config.db_path.display().to_string()).unwrap();
@@ -261,20 +264,6 @@ async fn interactive_bot(conn: &rusqlite::Connection) {
         line.clear();
     }
 }
-
-// struct SimpleLogger;
-// impl log::Log for SimpleLogger {
-//     fn enabled(&self, metadata: &log::Metadata) -> bool {
-//         metadata.level() <= log::max_level()
-//     }
-//     fn log(&self, record: &log::Record) {
-//         if self.enabled(record.metadata()) {
-//             println!("{} - {}", record.level(), record.args());
-//         }
-//     }
-//     fn flush(&self) {}
-// }
-
 
 #[cfg(test)]
 mod tests {

@@ -26,7 +26,7 @@ impl Default for Config {
             interactive: false,
             config_path: PathBuf::from(expanduser("~/.config/rssnotify/config.toml").unwrap()),
             db_path: PathBuf::from(expanduser("~/.config/rssnotify/database.db3").unwrap()),
-            log_path: PathBuf::from(expanduser("~/.config/rssnotify/log.txt").unwrap()),
+            log_path: PathBuf::from(expanduser("~/.config/rssnotify/rssnotify.log").unwrap()),
             bot_token: None,
             persistent: true,
             update_time: parse_update_time("9-17").unwrap(),
@@ -56,9 +56,10 @@ impl Config {
             ..Default::default()
         };
         config.apply_args(args)?; // Populate with args to get file name
-        config.apply_toml(&config.config_path.clone().as_path())?;
-        config.apply_args(args)?; // Overwrite with arguments
-
+        if config.config_path.is_file() {
+            config.apply_toml(&config.config_path.clone().as_path())?;
+            config.apply_args(args)?; // Overwrite with arguments
+        }
         Ok(config)
     }
 
