@@ -1,4 +1,6 @@
 pub mod sqlite {
+    use std::collections::HashSet;
+
     use rusqlite::{Connection, Result, params};
     use teloxide::RequestError;
     use tokio_rusqlite;
@@ -235,25 +237,28 @@ pub mod sqlite {
         res
     }
 
-    pub fn format_collection(
-        conn: &Connection,
-        collection: &UserRssList,
-    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let mut s = String::new();
-        let mut feedstring = String::new();
-        for uid in collection.feeds.iter() {
-            feedstring.push_str(
+    pub fn format_feedlist(conn: &Connection, uids: &HashSet<u32>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let mut result = String::from("");
+        for uid in uids.iter() {
+            result.push_str(
                 format!(
                     "{}: {}, ",
                     &uid,
                     match get_feed(conn, uid)? {
                         Some(feed) => feed.name,
                         None => "Corresponding feed not found.".to_string(),
-                    }
-                )
-                .as_str(),
-            );
+                    })
+                    .as_str());
         }
+        Ok(result)
+    }
+
+    pub fn format_collection(
+        conn: &Connection,
+        collection: &UserRssList,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let mut s = String::new();
+        let feedstring = format_feedlist(conn, &collection.feeds)?;
         s.push_str(&format!("Feeds: {{ {} }}\n", feedstring));
         s.push_str(&format!("Whitelist: {:?}\n", collection.whitelist));
         s.push_str(&format!("Blacklist: {:?}\n", collection.blacklist));

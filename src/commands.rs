@@ -1,6 +1,6 @@
 use crate::datastructs::{ChannelLookupTable, PubmedFeed, User, UserRssList};
 use crate::formatter::PreppedMessage;
-use crate::preset::{self, available_presets, Journals, Keywords};
+use crate::preset::{self, available_presets, Keywords, Preset};
 use crate::{CustomResult, db};
 use chrono::NaiveDate;
 use rusqlite::Connection;
@@ -83,6 +83,8 @@ pub enum Command {
     },
     #[command(description = "List available presets.", parse_with = "split")]
     Presets,
+    #[command(description = "[preset] - Show preset content.", parse_with = "split")]
+    PresetContent {preset: String},
     #[command(
         description = "[preset_name] [collection] - Add the content of a preset to a collection.",
         parse_with = "split"
@@ -122,6 +124,7 @@ pub async fn message_handler(
         Command::RemoveFromBlacklist { keyword, collection_index } => remove_from_blacklist(conn, user, keyword, collection_index),
         Command::NewCollection => new_collection(conn, user),
         Command::Presets => show_presets(),
+        Command::PresetContent {preset} => show_preset_content(conn, &preset),
         Command::AddPresetToCollection { preset, collection_index} => add_preset_to_collection(conn, user, preset, collection_index),
         Command::GetLastUpdate => get_last_update(user),
         Command::SetLastUpdate {date} => set_last_update(conn, user, date),
@@ -315,7 +318,17 @@ fn new_collection(conn: &Connection, user: &mut User) -> CustomResult<String> {
 }
 
 fn show_presets() -> CustomResult<String> {
-    Ok(format!("Available presets:\n{:?}", available_presets()))
+    Ok(format!("Available presets:\n{}\n\nAdd them with \"/addpresettocollection [preset_name] [collection_index]\"", available_presets()))
+}
+
+fn show_preset_content(conn: &Connection, preset_str: &str) -> CustomResult<String> {
+    match preset::parse_preset(&preset_str) {
+        Some(preset) => match preset {
+            Preset::Journal(p) => Ok(format!("Content of the preset \"{}\":\n{}", preset_str, db::sqlite::format_feedlist(conn, &preset::get_preset_journals(p))?)),
+            Preset::Keyword(p) => Ok(format!("Content of the preset \"{}\":\n{:?}", preset_str, preset::get_preset_keywords(p))),
+        },
+        None => return Ok(format!("'{}' is not a valid preset!", preset_str))
+    }
 }
 
 fn add_preset_to_collection(
@@ -325,24 +338,18 @@ fn add_preset_to_collection(
     collection_index: usize,
 ) -> CustomResult<String> {
     if let Some(collection) = user.rss_lists.get_mut(collection_index) {
-        match preset.as_str() {
-            "uro" => {
-                collection.whitelist = preset::merge_keyword_preset_with_set(Keywords::Uro, &collection.whitelist)
-            }
-            "abdomen" => {
-                collection.whitelist = preset::merge_keyword_preset_with_set(Keywords::Abdomen, &collection.whitelist)
-            }
-            "default_blacklist" => {
-                collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist)
-            }
-            "ai_blacklist" => {
-                collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::AIBlacklist, &collection.blacklist)
-            }
-            "radiology_journals" => {
-                collection.feeds =
-preset::merge_journal_preset_with_set(Journals::Radiology, &collection.feeds)
-            }
-            _ => return Ok(format!("'{}' is not a valid preset!", preset)),
+        match preset::parse_preset(&preset) {
+            Some(preset) => match preset {
+                Preset::Journal(p) =>
+                collection.feeds = preset::merge_journal_preset_with_set(p, &collection.feeds),
+                Preset::Keyword(p) => match p {
+                    Keywords::Uro | Keywords::Abdomen =>
+                collection.whitelist = preset::merge_keyword_preset_with_set(p, &collection.whitelist),
+                    Keywords::DefaultBlacklist | Keywords::AIBlacklist =>
+                collection.blacklist = preset::merge_keyword_preset_with_set(p, &collection.blacklist),
+                },
+            },
+            None => return Ok(format!("'{}' is not a valid preset!", preset))
         }
         db::sqlite::update_user(conn, user)?;
         return Ok(format!(

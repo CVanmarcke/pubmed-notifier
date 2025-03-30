@@ -37,6 +37,8 @@ tokio-rusqlite = "0.6.0"
 toml = "0.8.20"
 expanduser = "1.2.2"
 log4rs = "1.3.0"
+strum = "0.27"
+strum_macros = "0.27"
 
 [package.metadata.deb]
 maintainer = "C Vanmarcke"

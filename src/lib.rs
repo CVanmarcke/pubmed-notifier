@@ -170,7 +170,7 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
         ),
         PubmedFeed::build_from_link(
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101698198/?limit=10&name=J%20Belg%20Soc%20Radiol&utm_campaign=journals",
-            "Journal of the Belgian society of radiology",
+            "Journal of the Belgian Society of Radiology",
         ),
         PubmedFeed::build_from_link(
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/8706123/?limit=10&name=Acta%20Radiol&utm_campaign=journals",

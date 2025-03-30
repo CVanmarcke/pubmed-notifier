@@ -1,4 +1,8 @@
 use std::collections::HashSet;
+use strum::IntoEnumIterator;
+use strum_macros::{EnumIter, EnumString};
+use std::str::FromStr;
+// use strum_macros::EnumIter;
 
 pub enum PresetList {
     Keyword(HashSet<String>),
@@ -10,26 +14,37 @@ pub enum Preset {
     Journal(Journals)
 }
 
+#[derive(Debug, EnumIter, EnumString)]
 pub enum Keywords {
+    #[strum(ascii_case_insensitive)]
     Uro,
+    #[strum(ascii_case_insensitive)]
     Abdomen,
+    #[strum(ascii_case_insensitive)]
     DefaultBlacklist,
+    #[strum(ascii_case_insensitive)]
     AIBlacklist
 }
 
+#[derive(Debug, EnumIter, EnumString)]
 pub enum Journals {
+    #[strum(ascii_case_insensitive)]
     Radiology,
+    #[strum(ascii_case_insensitive)]
     TechnicalRadiology,
+    #[strum(ascii_case_insensitive)]
     Clinical,
+    #[strum(ascii_case_insensitive)]
     ClinicalUrology,
+    #[strum(ascii_case_insensitive)]
     ClinicalGI,
 }
 
-pub fn available_presets() -> [&'static str; 9] {
-    ["uro", "abdomen", "default_blacklist", "ai_blacklist",
-        "radiology_journals", "technical_radiology_journals",
-        "clinical_urology", "clinical_gi", "clinical_journals"]
-}
+// pub fn available_presets() -> [&'static str; 9] {
+//     ["uro", "abdomen", "default_blacklist", "ai_blacklist",
+//         "radiology_journals", "technical_radiology_journals",
+//         "clinical_urology", "clinical_gi", "clinical_journals"]
+// }
 
 const DEFAULT_URO_WHITELIST: &[&str] = &[
     "urogenital",
@@ -121,6 +136,18 @@ const CLINICAL_JOURNALS: &[u32] = &[
     100909747, 101589553, 0255562
 ];
 
+pub fn available_presets() -> String {
+    let mut s = String::from("Keyword preset lists: ");
+    for keyword in Keywords::iter() {
+        s.push_str(&format!("{:?}, ", keyword));
+    }
+    s.push_str("\nJournal preset lists: ");
+    for journal in Journals::iter() {
+        s.push_str(&format!("{:?}, ", journal));
+    }
+    s
+}
+
 pub fn get_preset_keywords(keywords: Keywords) -> HashSet<String> {
     match keywords {
         Keywords::Uro => DEFAULT_URO_WHITELIST,
@@ -166,3 +193,12 @@ pub fn merge_journal_preset_with_set(journals: Journals, set: &HashSet<u32>)  ->
         .collect::<HashSet<u32>>()
 }
 
+pub fn parse_preset(preset_str: &str) -> Option<Preset> {
+    if let Ok(p) = Journals::from_str(preset_str) {
+        Some(Preset::Journal(p))
+    } else if let Ok(p) = Keywords::from_str(preset_str) {
+        Some(Preset::Keyword(p))
+    } else {
+        None
+    }
+}
