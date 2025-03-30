@@ -15,18 +15,12 @@ pub mod sqlite {
     pub fn new(path: &str) -> Result<Connection, rusqlite::Error> {
         let conn = Connection::open(path)?;
         populate(&conn)?;
-        for f in make_feedlist() {
-            add_feed(&conn, &f)?;
-        }
         Ok(conn)
     }
 
     pub fn new_in_mem() -> Result<Connection, rusqlite::Error> {
         let conn = Connection::open_in_memory()?;
         populate(&conn)?;
-        for f in make_feedlist() {
-            add_feed(&conn, &f)?;
-        }
         Ok(conn)
     }
 
@@ -43,7 +37,7 @@ pub mod sqlite {
             "CREATE TABLE IF NOT EXISTS feeds (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             name     TEXT NOT NULL,
-            link     TEXT NOT NULL,
+            link     TEXT NOT NULL UNIQUE,
             channel  TEXT NOT NULL
         )",
             (), // empty list of parameters.
@@ -140,12 +134,13 @@ pub mod sqlite {
             )?;
             Ok(feed.uid.unwrap())
         } else {
+            log::info!("Adding new non-journal feed {} with link {}", &feed.name, &feed.link);
             conn.execute(
                 "INSERT OR IGNORE INTO feeds (name, link, channel) VALUES (?1, ?2, ?3)",
                 (&feed.name, &feed.link, &channel),
             )?;
 
-            let mut stmt = conn.prepare("SELECT id FROM users WHERE link=(?1)")?;
+            let mut stmt = conn.prepare("SELECT id FROM feeds WHERE link=(?1)")?;
             let mut rows = stmt.query([&feed.link])?;
             let row = rows.next()?.ok_or(rusqlite::Error::InvalidParameterName(
                 "Couldnt find user".to_string(),

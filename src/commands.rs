@@ -1,6 +1,6 @@
 use crate::datastructs::{ChannelLookupTable, PubmedFeed, User, UserRssList};
 use crate::formatter::PreppedMessage;
-use crate::preset::{self, available_presets, Keywords};
+use crate::preset::{self, available_presets, Journals, Keywords};
 use crate::{CustomResult, db};
 use chrono::NaiveDate;
 use rusqlite::Connection;
@@ -22,14 +22,14 @@ pub enum Command {
     #[command(description = "List how many collections you have.")]
     Collections,
     #[command(
-        description = "[collection] - Show the content of a collection (journals, whitelist keywords and blacklist keywords). Provide the collection number, starting at 0 (eg \"/collection 0\")",
+        description = "[collection] - Show the journals and keywords of a collection. Provide the collection number, starting at 0 (eg \"/collection 0\")",
         parse_with = "split"
     )]
     Collection { collection_index: usize },
     #[command(description = "Create a new, empty collection", parse_with = "split")]
     NewCollection,
     #[command(
-        description = "[name] [link] - Add a new pubmed feed. Provide the name of the feed and link.",
+        description = "[feed_name] [link] - Add a new pubmed feed. Provide the name of the feed (with any spaces replaced by _) and link.",
         parse_with = "split"
     )]
     NewFeed { name: String, link: String },
@@ -42,7 +42,7 @@ pub enum Command {
         collection_index: usize,
     },
     #[command(
-        description = "Add a keyword to the whitelist. Provide the keyword and collection number. Space can be entered by using _. Eg. /addtowhitelist cervical_cancer 0",
+        description = "[word] [collection] - Add a keyword to the whitelist. Provide the keyword and collection number. Space can be entered by using _. Eg. /addtowhitelist cervical_cancer 0",
         parse_with = "split"
     )]
     AddToWhitelist {
@@ -50,7 +50,7 @@ pub enum Command {
         collection_index: usize,
     },
     #[command(
-        description = "Add a keyword to the blacklist. Provide the keyword and collection number.",
+        description = "[word] [collection] - Add a keyword to the blacklist. Space can be entered by using _",
         parse_with = "split"
     )]
     AddToBlacklist {
@@ -58,7 +58,7 @@ pub enum Command {
         collection_index: usize,
     },
     #[command(
-        description = "Remove a feed from a collection. Provide the id and collection number.",
+        description = "[id] [collection] - Remove a feed from a collection.",
         parse_with = "split"
     )]
     RemoveFeed {
@@ -66,7 +66,7 @@ pub enum Command {
         collection_index: usize,
     },
     #[command(
-        description = "Remove a keyword from the whitelist. Provide the keyword and collection number.",
+        description = "[word] [collection] - Remove a keyword from the whitelist.",
         parse_with = "split"
     )]
     RemoveFromBlacklist {
@@ -74,7 +74,7 @@ pub enum Command {
         collection_index: usize,
     },
     #[command(
-        description = "Remove a keyword from the blacklist. Provide the keyword and collection number.",
+        description = "[word] [collection] - Remove a keyword from the blacklist.",
         parse_with = "split"
     )]
     RemoveFromWhitelist {
@@ -84,7 +84,7 @@ pub enum Command {
     #[command(description = "List available presets.", parse_with = "split")]
     Presets,
     #[command(
-        description = "Add the content of a preset to a collection. Provide the preset name and collection index.",
+        description = "[preset_name] [collection] - Add the content of a preset to a collection.",
         parse_with = "split"
     )]
     AddPresetToCollection {
@@ -97,6 +97,8 @@ pub enum Command {
     SetLastUpdate { date: String }, // in format YYY-mm-dd
     #[command(hide)]
     GetNewSince { date: String }, // in format YYY-mm-dd
+    #[command(hide)]
+    Update,
 }
 
 pub async fn message_handler(
@@ -106,25 +108,26 @@ pub async fn message_handler(
 ) -> CustomResult<String> {
     let command = Command::parse(msg, "")?; // TODO evt veranderen naar Command::Help
     match command {
-          Command::Start => Ok("Welcome to the telegram pubmed notifier bot! Send /help for a list of available commands.".to_string()),
-          Command::Help => Ok(Command::descriptions().to_string()),
-          Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num]", user.rss_lists.len())) ,
-          Command::Collection { collection_index  } => show_collection(conn, user, collection_index),
-          Command::Feeds => list_feeds(conn),
-          Command::NewFeed { name, link } =>  newfeed(conn, name, link),
-          Command::AddFeed { feed_id, collection_index } => add_feed_to_collection(conn, user, feed_id, collection_index),
-          Command::AddToWhitelist { keyword, collection_index } => add_to_whitelist(conn, user, keyword, collection_index),
-          Command::AddToBlacklist { keyword, collection_index } => add_to_blacklist(conn, user, keyword, collection_index),
-          Command::RemoveFeed { feed_id, collection_index } => remove_feed_from_collection(conn, user, feed_id, collection_index),
-          Command::RemoveFromWhitelist { keyword, collection_index } => remove_from_whitelist(conn, user, keyword, collection_index),
-          Command::RemoveFromBlacklist { keyword, collection_index } => remove_from_blacklist(conn, user, keyword, collection_index),
-          Command::NewCollection => new_collection(conn, user),
-          Command::Presets => show_presets(),
-          Command::AddPresetToCollection { preset, collection_index} => add_preset_to_collection(conn, user, preset, collection_index),
-          Command::GetLastUpdate => get_last_update(user),
-          Command::SetLastUpdate {date} => set_last_update(conn, user, date),
-          Command::GetNewSince {date} => get_new_since(conn, user, date), // in format YYY-mm-dd
-      }
+        Command::Start => Ok("Welcome to the telegram pubmed notifier bot! Send /help for a list of available commands.".to_string()),
+        Command::Help => Ok(Command::descriptions().to_string()),
+        Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num]", user.rss_lists.len())) ,
+        Command::Collection { collection_index  } => show_collection(conn, user, collection_index),
+        Command::Feeds => list_feeds(conn),
+        Command::NewFeed { name, link } =>  newfeed(conn, name, link),
+        Command::AddFeed { feed_id, collection_index } => add_feed_to_collection(conn, user, feed_id, collection_index),
+        Command::AddToWhitelist { keyword, collection_index } => add_to_whitelist(conn, user, keyword, collection_index),
+        Command::AddToBlacklist { keyword, collection_index } => add_to_blacklist(conn, user, keyword, collection_index),
+        Command::RemoveFeed { feed_id, collection_index } => remove_feed_from_collection(conn, user, feed_id, collection_index),
+        Command::RemoveFromWhitelist { keyword, collection_index } => remove_from_whitelist(conn, user, keyword, collection_index),
+        Command::RemoveFromBlacklist { keyword, collection_index } => remove_from_blacklist(conn, user, keyword, collection_index),
+        Command::NewCollection => new_collection(conn, user),
+        Command::Presets => show_presets(),
+        Command::AddPresetToCollection { preset, collection_index} => add_preset_to_collection(conn, user, preset, collection_index),
+        Command::GetLastUpdate => get_last_update(user),
+        Command::SetLastUpdate {date} => set_last_update(conn, user, date),
+        Command::GetNewSince {date} => get_new_since(conn, user, date), // in format YYY-mm-dd
+        Command::Update => db::sqlite::update_channels(conn).await.map(|_| "Updated channels".to_string()).map_err(|e| e.into())
+    }
 }
 
 fn list_feeds(conn: &Connection) -> CustomResult<String> {
@@ -302,7 +305,7 @@ fn newfeed(conn: &Connection, name: String, link: String) -> CustomResult<String
 
 fn new_collection(conn: &Connection, user: &mut User) -> CustomResult<String> {
     let mut collection = UserRssList::new();
-    collection.blacklist = preset::merge_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist);
+    collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist);
     user.rss_lists.push(collection);
     db::sqlite::update_user(conn, user)?;
     Ok(format!(
@@ -324,22 +327,20 @@ fn add_preset_to_collection(
     if let Some(collection) = user.rss_lists.get_mut(collection_index) {
         match preset.as_str() {
             "uro" => {
-                collection.whitelist = preset::merge_preset_with_set(Keywords::Uro, &collection.whitelist)
+                collection.whitelist = preset::merge_keyword_preset_with_set(Keywords::Uro, &collection.whitelist)
             }
             "abdomen" => {
-                collection.whitelist = preset::merge_preset_with_set(Keywords::Abdomen, &collection.whitelist)
+                collection.whitelist = preset::merge_keyword_preset_with_set(Keywords::Abdomen, &collection.whitelist)
             }
             "default_blacklist" => {
-                collection.blacklist = preset::merge_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist)
+                collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist)
             }
             "ai_blacklist" => {
-                collection.blacklist = preset::merge_preset_with_set(Keywords::AIBlacklist, &collection.blacklist)
+                collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::AIBlacklist, &collection.blacklist)
             }
             "radiology_journals" => {
-                collection.feeds = preset::radiology_journals()
-                    .into_iter()
-                    .chain(collection.feeds.clone())
-                    .collect()
+                collection.feeds =
+preset::merge_journal_preset_with_set(Journals::Radiology, &collection.feeds)
             }
             _ => return Ok(format!("'{}' is not a valid preset!", preset)),
         }

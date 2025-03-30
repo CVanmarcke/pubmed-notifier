@@ -195,10 +195,6 @@ impl PubmedFeed {
     }
     pub fn key(&self) -> &String {
         self.get_link()
-        // match self {
-        //     PubmedFeed::Journal { name: _, id, .. } => format!("{}", id),
-        //     PubmedFeed::Query {name: _, link, .. } => link.clone()
-        // }
     }
 }
 
@@ -323,7 +319,7 @@ mod tests {
     #[test]
     fn test_jsonconvert() {
         let mut uro_rss_list: UserRssList = UserRssList::new();
-        uro_rss_list.whitelist = preset::merge_preset_with_set(Keywords::Uro, &uro_rss_list.whitelist);
+        uro_rss_list.whitelist = preset::merge_keyword_preset_with_set(Keywords::Uro, &uro_rss_list.whitelist);
 
         let user = User {
             chat_id: 1234i64,

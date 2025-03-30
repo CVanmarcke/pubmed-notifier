@@ -2,9 +2,9 @@ use chrono::{Local, NaiveTime, TimeDelta, Timelike};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Logger, Root};
+use log4rs::config::{Appender, Root};
 use rssnotify::config::Config;
-use rssnotify::datastructs::ChannelLookupTable;
+use rssnotify::datastructs::{ChannelLookupTable, User};
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
 use rssnotify::{console_message_handler, db, repl_message_handler};
@@ -221,22 +221,34 @@ async fn send_new_and_update_users<S: Sender>(
     })?;
     let mut result = Vec::new();
     for user in users.iter_mut() {
-        if let Some(items) = user.get_new_items(&feeds) {
-            log::info!(
-                "{} new items for user {} to send",
-                items.len(),
-                user.chat_id
-            );
-            // TODO result handling
-            sender.send_items(&user, &items).await;
-            user.update_last_pushed();
-            result.push(db::sqlite::update_user(conn, &user));
-        }
+        result.push(send_new_and_update_user(conn, sender, user, &feeds).await)
+
     }
     for r in result {
         r?;
     }
     Ok(())
+}
+
+async fn send_new_and_update_user<S: Sender>(
+    conn: &rusqlite::Connection,
+    sender: &S,
+    user: &mut User,
+    feeds: &ChannelLookupTable
+) -> Result<usize, rusqlite::Error> {
+    if let Some(items) = user.get_new_items(&feeds) {
+        log::info!(
+            "{} new items for user {} to send",
+            items.len(),
+            user.chat_id
+        );
+        // TODO result handling
+        sender.send_items(user, &items).await;
+        user.update_last_pushed();
+        db::sqlite::update_user(conn, &user)
+    } else {
+        Ok(0)
+    }
 }
 
 async fn interactive_bot(conn: &rusqlite::Connection) {
