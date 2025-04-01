@@ -104,7 +104,7 @@ const DEFAULT_ABDOMEN_WHITELIST: &[&str] = &[
     "sigmoid",
     "rectum",
     "rectal",
-    "anus",
+    " anus",
     " anal ",
     "uterus",
     "uterine",

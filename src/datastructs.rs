@@ -4,7 +4,6 @@ use chrono::DateTime;
 use chrono::Local;
 use futures::future::join_all;
 use regex::Regex;
-// use crate::rsshandler;
 use crate::channelwrapper::ChannelWrapper;
 use crate::rsshandler::item_contains_keyword;
 use chrono::format::ParseResult;
@@ -40,6 +39,7 @@ pub struct PubmedFeed {
     pub uid: Option<u32>,
     pub link: String,
     pub channel: ChannelWrapper,
+    pub last_pushed_guid: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -102,6 +102,7 @@ impl User {
         // TODO mut self -> edit last updated
     }
 
+
     pub fn add_feed(
         &mut self,
         collection_index: usize,
@@ -129,6 +130,7 @@ impl PubmedFeed {
         return Ok(ChannelWrapper::build(channel));
     }
 
+    // TODO is double function
     pub async fn update_channel(&mut self) -> Result<&PubmedFeed, Box<dyn Error + Sync + Send>> {
         log::info!("Updating feed {} ({:?})...", &self.name, &self.uid);
         let newchannel = self.download_channel().await?;
@@ -154,10 +156,6 @@ impl PubmedFeed {
     }
 
     pub fn set_uid(&mut self, newuid: u32) -> Option<u32> {
-        // match self {
-        //     PubmedFeed::Journal { uid, .. } => uid.replace(newuid), // Returns the OLD value!
-        //     PubmedFeed::Query { uid, .. } => uid.replace(newuid)
-        // }
         self.uid.replace(newuid) // Returns the old value!
     }
 
@@ -165,12 +163,26 @@ impl PubmedFeed {
         self.channel.get_new_items(fromdate)
     }
 
+    pub fn get_new_items_from_last<'a>(&'a self) -> Vec<&'a Item> {
+        if let Some(guid) = self.last_pushed_guid.as_ref() {
+            self.channel.get_new_items_from_last(guid)
+        } else {
+            // self.update_guid();
+            vec![]
+        }
+    }
+
+    pub fn update_guid(&mut self) -> Option<String> {
+        let firstitem = self.channel.items().iter().next();
+        if let Some(item) = firstitem {
+            self.last_pushed_guid = Some(item.guid()?.value.clone());
+            return self.last_pushed_guid.clone()
+        }
+        None
+    }
+
     pub fn get_link(&self) -> &String {
         &self.link
-        // match self {
-        //     PubmedFeed::Journal { name: _, id, limit, .. } => String::from(format!("https://pubmed.ncbi.nlm.nih.gov/rss/journals/{}/?limit={}", &id, &limit)),
-        //     PubmedFeed::Query {name: _, link, ..} => link.clone()
-        // }
     }
     // CAVE: a wrong feed can be inserted
     pub fn build_from_link(link: &str, name: &str) -> Result<PubmedFeed, &'static str> {
@@ -191,6 +203,7 @@ impl PubmedFeed {
             uid,
             link,
             channel: ChannelWrapper::new(),
+            last_pushed_guid: None,
         })
     }
     pub fn key(&self) -> &String {
@@ -221,6 +234,31 @@ impl UserRssList {
             blacklist: HashSet::new(),
         }
     }
+
+    pub fn filter_item<'a>(&self, item: &'a Item) -> bool {
+        item_contains_keyword(item, &self.whitelist) && !item_contains_keyword(item, &self.blacklist)
+    }
+
+    pub fn filter_items<'a>(
+        &self,
+        items: Vec<&'a Item>
+    ) -> Vec<&'a Item> {
+        items
+            .into_iter()
+            .inspect(|item| log::debug!("Title: {}", item.title().unwrap()))
+            .filter(|item| item_contains_keyword(item, &self.whitelist))
+            // .inspect(|item| log::debug!("item passed whitelist: {}", item.title().unwrap()))
+            .filter(|item| !item_contains_keyword(item, &self.blacklist))
+            // .inspect(|item| log::debug!("Item is included to send: {}", item.title().unwrap()))
+            .collect::<Vec<&'a Item>>()
+            // .for_each(|item| to_send.push(item))
+                    // {
+                    //        to_send.push(item)
+                    //                        }
+
+        // todo!();
+    }
+
 }
 
 impl Default for UserRssList {
@@ -337,17 +375,20 @@ mod tests {
 	    name: "Insights Imaging".to_string(),
             link: "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=5&name=Insights%20Imaging&utm_campaign=journals".to_string(),
 	    uid: Some(101532453),
-	    channel: ChannelWrapper::new()};
+	    channel: ChannelWrapper::new(),
+            last_pushed_guid: None};
         let journal2 = PubmedFeed {
 	    name: "something else".to_string(),
             link: "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532454/?limit=5&utm_campaign=journals".to_string(),
 	    uid: Some(100000),
-	    channel: ChannelWrapper::new()};
+	    channel: ChannelWrapper::new(),
+            last_pushed_guid: None};
         let journal11 = PubmedFeed {
 	    name: "something else".to_string(),
             link: "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=5&name=Insights%20Imaging&utm_campaign=journals".to_string(),
 	    uid: Some(101532453),
-	    channel: ChannelWrapper::new()};
+	    channel: ChannelWrapper::new(),
+            last_pushed_guid: None};
         assert_eq!(journal1, journal11);
         let vec = vec![journal1, journal2];
         assert!(vec.contains(&journal11));

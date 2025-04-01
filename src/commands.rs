@@ -115,7 +115,7 @@ pub async fn message_handler(
         Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num]", user.rss_lists.len())) ,
         Command::Collection { collection_index  } => show_collection(conn, user, collection_index),
         Command::Feeds => list_feeds(conn),
-        Command::NewFeed { name, link } =>  newfeed(conn, name, link),
+        Command::NewFeed { name, link } =>  newfeed(conn, name, link).await,
         Command::AddFeed { feed_id, collection_index } => add_feed_to_collection(conn, user, feed_id, collection_index),
         Command::AddToWhitelist { keyword, collection_index } => add_to_whitelist(conn, user, keyword, collection_index),
         Command::AddToBlacklist { keyword, collection_index } => add_to_blacklist(conn, user, keyword, collection_index),
@@ -297,8 +297,10 @@ fn show_collection(
     }
 }
 
-fn newfeed(conn: &Connection, name: String, link: String) -> CustomResult<String> {
-    let feed = PubmedFeed::build_from_link(&link, &name)?;
+async fn newfeed(conn: &Connection, name: String, link: String) -> CustomResult<String> {
+    let mut feed = PubmedFeed::build_from_link(&link, &name)?;
+    feed.update_channel_in_place().await?;
+    feed.update_guid();
     let uid = db::sqlite::add_feed(conn, &feed)?;
     Ok(format!(
         "Added feed {}, with id {}. Add it to a collection with /addfeed {} [collection_index].",

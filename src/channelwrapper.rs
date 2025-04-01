@@ -36,6 +36,18 @@ impl ChannelWrapper {
         }
         return Ok(new_items);
     }
+    pub fn get_new_items_from_last<'a>(&'a self, guid: &str) -> Vec<&'a Item> {
+        let mut new_items: Vec<&Item> = Vec::new();
+        for item in self.items() {
+            new_items.push(item);
+            if item.guid().as_ref().unwrap().value() == guid {
+                break;
+            }
+        }
+        return new_items;
+    }
+
+
 }
 
 impl Serialize for ChannelWrapper {

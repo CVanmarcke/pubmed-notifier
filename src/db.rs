@@ -37,10 +37,11 @@ pub mod sqlite {
         )?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS feeds (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            name     TEXT NOT NULL,
-            link     TEXT NOT NULL UNIQUE,
-            channel  TEXT NOT NULL
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            link        TEXT NOT NULL UNIQUE,
+            channel     TEXT NOT NULL,
+            last_pushed_guid   TEXT
         )",
             (), // empty list of parameters.
         )?;
@@ -131,15 +132,15 @@ pub mod sqlite {
             .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?;
         if feed.uid.is_some() {
             conn.execute(
-                "INSERT OR IGNORE INTO feeds (id, name, link, channel) VALUES (?1, ?2, ?3, ?4)",
-                (&feed.uid.unwrap(), &feed.name, &feed.link, &channel),
+                "INSERT OR IGNORE INTO feeds (id, name, link, channel, last_pushed_guid) VALUES (?1, ?2, ?3, ?4, ?5)",
+                (&feed.uid.unwrap(), &feed.name, &feed.link, &channel, &feed.last_pushed_guid),
             )?;
             Ok(feed.uid.unwrap())
         } else {
             log::info!("Adding new non-journal feed {} with link {}", &feed.name, &feed.link);
             conn.execute(
-                "INSERT OR IGNORE INTO feeds (name, link, channel) VALUES (?1, ?2, ?3)",
-                (&feed.name, &feed.link, &channel),
+                "INSERT OR IGNORE INTO feeds (name, link, channel, last_pushed_guid) VALUES (?1, ?2, ?3, ?4)",
+                (&feed.name, &feed.link, &channel, &feed.last_pushed_guid),
             )?;
 
             let mut stmt = conn.prepare("SELECT id FROM feeds WHERE link=(?1)")?;
@@ -151,6 +152,21 @@ pub mod sqlite {
         }
     }
 
+    pub fn update_guid_feeds(conn: &Connection, feeds: Vec<PubmedFeed>) -> Result<(), rusqlite::Error> {
+        let mut stmt = conn.prepare_cached(
+            "UPDATE feeds
+                 SET last_pushed_guid = ?1
+                 WHERE id = ?2",
+        )?;
+        for feed in feeds.iter() {
+            stmt.execute(params![
+                &feed.last_pushed_guid,
+                &feed.uid.unwrap(),
+            ])?;
+        }
+        Ok(())
+    }
+
     pub fn update_feed(conn: &Connection, feed: &PubmedFeed) -> Result<u32, rusqlite::Error> {
         let channel = serde_json::to_string(&feed.channel)
             .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?;
@@ -160,14 +176,16 @@ pub mod sqlite {
                  SET id = ?1,
                      name = ?2,
                      link = ?3,
-                     channel = ?4
+                     channel = ?4,
+                     last_pushed_guid = ?5
                  WHERE id = ?1",
             )?;
             stmt.execute(params![
                 &feed.uid.unwrap(),
                 &feed.name,
                 &feed.link,
-                &channel
+                &channel,
+                &feed.last_pushed_guid,
             ])?;
             Ok(feed.uid.unwrap())
         } else {
@@ -199,7 +217,7 @@ pub mod sqlite {
     }
 
     pub fn get_feed(conn: &Connection, id: &u32) -> Result<Option<PubmedFeed>, rusqlite::Error> {
-        let mut stmt = conn.prepare("SELECT id, name, link, channel FROM feeds WHERE id=(?1)")?;
+        let mut stmt = conn.prepare("SELECT id, name, link, channel, last_pushed_guid FROM feeds WHERE id=(?1)")?;
         let mut rows = stmt.query([id])?;
         let row_opt = rows.next()?;
         if let Some(row) = row_opt {
@@ -212,6 +230,7 @@ pub mod sqlite {
                     ChannelWrapper::from_json(&s)
                         .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?
                 },
+                last_pushed_guid: row.get(4)?,
             }))
         } else {
             Ok(None)
@@ -219,7 +238,7 @@ pub mod sqlite {
     }
 
     pub fn get_feeds(conn: &Connection) -> Result<Vec<PubmedFeed>, rusqlite::Error> {
-        let mut stmt = conn.prepare("SELECT id, name, link, channel FROM feeds")?;
+        let mut stmt = conn.prepare("SELECT id, name, link, channel, last_pushed_guid FROM feeds")?;
         let feed_iter = stmt.query_map([], |row| {
             Ok(PubmedFeed {
                 name: row.get(1)?,
@@ -230,6 +249,7 @@ pub mod sqlite {
                     ChannelWrapper::from_json(&s)
                         .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?
                 },
+                last_pushed_guid: row.get(4)?,
             })
         })?;
 
@@ -237,6 +257,8 @@ pub mod sqlite {
         res
     }
 
+    // TODO: verplaatsen naar format module
+    // TODO: functie die in één keer een reeks feeds kan ophalen (in een vec)
     pub fn format_feedlist(conn: &Connection, uids: &HashSet<u32>) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let mut result = String::from("");
         for uid in uids.iter() {

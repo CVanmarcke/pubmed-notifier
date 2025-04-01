@@ -3,11 +3,13 @@ use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Root};
+use rss::Item;
 use rssnotify::config::Config;
 use rssnotify::datastructs::{ChannelLookupTable, User};
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
 use rssnotify::{console_message_handler, db, repl_message_handler};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::{env, fs};
 use std::process;
@@ -17,42 +19,11 @@ use teloxide::Bot;
 use teloxide::prelude::*;
 use tokio_rusqlite::Connection;
 
-// op server in background starten
+// om server in background starten
 // https://www.scaler.com/topics/how-to-run-process-in-background-linux/
 
-// https://github.com/teloxide/teloxide
-
-// Main met maar 2 mogelijke args:
-// debug (-d ofzo) en -f config.toml
-// Al de rest van de config via de toml importeren...
-
-// bij update: volledige channel in items in een lijst.
-// Bij verzenden: per user, een datum van laatste verstuurd. Bij verzenden, checken obv die datum welke nieuw zijn in elke journal en dat verzenden.
-// Struct per journal (algemeen, voor iedereen hetzelfde). Deze structs misschien in een dictionary obv ID (maar hashable).
-// User config struct: oa last_send, telegram_id, RSS_lists (= vector met RSS_lists), update interval etc.
-// RSS_list bevat een lijst van rss_queries (struct met link/id), lijst van whitelist keywords en blacklist keywords
-// RSS_queries zijn gekoppeld met een ID aan journal structs.
-
-// Telegram kan de user config structs aanpassen.
-// Misschien aparte lijst per user voor laatst verzonden (zodat enkel telegram aanpassingen moet doen aan user config, geen race condition).
-
-// Teloxide toegang geven tot struct/db met config van de user:
-// https://github.com/teloxide/teloxide/discussions/471
-// Aangezien de de config mee verplaatsen -> zullen in de config zelf alle data moeten steken die nodig is. evt ook save
-
-// aparte mod voor formatter.
-
-// Flow in main:
-// 1) laad config van env en arguments
-// 2) laad userinfo (in arc<mutex<>>) en lijst van feeds.
-// 3) laad inhoud van feeds
-// 4) start telegram bot
-// 5) start async timer functie (beschreven in lib): argument: (lijst van) users, telegram bot, feeds, inhoud.
-//    Deze fn kan ook refreshen?
-//    Alternatief: je geeft die functie een closure die user en feeds kan aanpassen?
-// 6) start async command functie (beschreven in lib): arg users, bot, feeds
-//    Alternatief: je geeft die een closure die user en feeds kan aanpassen?
-//    Systeem om van de command async commandos te sturen naar de andere?
+// Scheduling alternative
+// https://crates.io/crates/tokio-cron-scheduler
 
 #[tokio::main]
 async fn main() {
@@ -116,12 +87,12 @@ async fn main() {
             process::exit(1);
         }
         if config.debugmode {
-            if let Err(e) = send_new_and_update_users(&conn, &ConsoleSender {}).await {
+            if let Err(e) = send_new_users(&conn, &ConsoleSender {}).await {
                 log::error!("Error when sending new articles: {e:?}");
             }
         } else {
             let bot = Bot::new(config.bot_token.as_ref().unwrap());
-            if let Err(e) = send_new_and_update_users(&conn, &TelegramSender { bot }).await {
+            if let Err(e) = send_new_users(&conn, &TelegramSender { bot }).await {
                 log::error!("Error when sending new articles: {e:?}");
             }
             
@@ -172,6 +143,7 @@ where
     let max_wait_time = 5 * 60;
     let senderarc = Arc::new(sender);
     loop {
+        // TODO: doet ook een update om 0000 h
         let now = Local::now().naive_local().time();
         let wait_time: u64;
         let duration = times
@@ -181,8 +153,7 @@ where
             .min();
 
         if duration.is_none() {
-            // of max wait time
-            wait_time = (86399 - now.num_seconds_from_midnight()).into();
+            wait_time = max_wait_time;
         } else {
             // is always positive as we filtered that in de duration map
             wait_time = u64::try_from(duration.unwrap().num_seconds()).unwrap();
@@ -198,7 +169,7 @@ where
                     let rt = tokio::runtime::Runtime::new().unwrap();
                     rt.block_on(async {
                         db::sqlite::update_channels(conn).await?;
-                        send_new_and_update_users(conn, &(*asender)).await
+                        send_new_users(conn, &(*asender)).await
                     })?;
                     Ok(())
                 })
@@ -211,45 +182,94 @@ where
     }
 }
 
-async fn send_new_and_update_users<S: Sender>(
+// async fn _send_new_and_update_users<S: Sender>(
+//     conn: &rusqlite::Connection,
+//     sender: &S,
+// ) -> Result<(), rusqlite::Error> {
+//     let mut users = db::sqlite::get_users(conn)?;
+//     let feeds = ChannelLookupTable::from_vec(db::sqlite::get_feeds(conn)?).map_err(|e| {
+//         rusqlite::Error::InvalidParameterName(format!("Error when updating tables: {e:?}"))
+//     })?;
+//     let mut result = Vec::new();
+//     for user in users.iter_mut() {
+//         result.push(send_new_user(conn, sender, user, &feeds).await)
+
+//     }
+//     for r in result {
+//         r?;
+//     }
+//     Ok(())
+// }
+
+// async fn send_new_and_update_user_old<S: Sender>(
+//     conn: &rusqlite::Connection,
+//     sender: &S,
+//     user: &mut User,
+//     feeds: &ChannelLookupTable
+// ) -> Result<usize, rusqlite::Error> {
+//     if let Some(items) = user.get_new_items(&feeds) {
+//         log::info!(
+//             "{} new items for user {} to send",
+//             items.len(),
+//             user.chat_id
+//         );
+//         // TODO result handling
+//         sender.send_items(user, &items).await;
+//         user.update_last_pushed();
+//         db::sqlite::update_user(conn, &user)
+//     } else {
+//         Ok(0)
+//     }
+// }
+
+async fn send_new_users<S: Sender>(
     conn: &rusqlite::Connection,
     sender: &S,
 ) -> Result<(), rusqlite::Error> {
-    let mut users = db::sqlite::get_users(conn)?;
-    let feeds = ChannelLookupTable::from_vec(db::sqlite::get_feeds(conn)?).map_err(|e| {
-        rusqlite::Error::InvalidParameterName(format!("Error when updating tables: {e:?}"))
-    })?;
-    let mut result = Vec::new();
-    for user in users.iter_mut() {
-        result.push(send_new_and_update_user(conn, sender, user, &feeds).await)
-
+    let users = db::sqlite::get_users(conn)?;
+    let mut new_items: BTreeMap<u32, Vec<&Item>> = BTreeMap::new();
+    let feeds = db::sqlite::get_feeds(conn)?;
+    
+    for feed in feeds.iter() {
+        new_items.insert(feed.uid.unwrap(), feed.get_new_items_from_last());
     }
+
+    let mut result = Vec::new();
+    for user in users.iter() {
+        result.push(send_new_user(conn, sender, user, &new_items).await);
+        let _ = db::sqlite::update_user(conn, &user);
+    }
+    db::sqlite::update_guid_feeds(conn, feeds)?;
     for r in result {
         r?;
     }
     Ok(())
 }
 
-async fn send_new_and_update_user<S: Sender>(
-    conn: &rusqlite::Connection,
+
+async fn send_new_user<S: Sender>(
+    _conn: &rusqlite::Connection,
     sender: &S,
-    user: &mut User,
-    feeds: &ChannelLookupTable
+    user: &User,
+    new_items: &BTreeMap<u32, Vec<&Item>>
 ) -> Result<usize, rusqlite::Error> {
-    if let Some(items) = user.get_new_items(&feeds) {
-        log::info!(
-            "{} new items for user {} to send",
-            items.len(),
-            user.chat_id
-        );
-        // TODO result handling
-        sender.send_items(user, &items).await;
-        user.update_last_pushed();
-        db::sqlite::update_user(conn, &user)
-    } else {
-        Ok(0)
+    for collection in user.rss_lists.iter() {
+        for feed_id in collection.feeds.iter() {
+            if let Some(items) =  new_items.get(feed_id) {
+                // Make new vec with references to the items
+                let filtered: Vec<&Item> =
+                    items.iter()
+                        .map(|item| *item)
+                        .filter(|item| collection.filter_item(item))
+                        .collect();
+                sender.send_items(user, &filtered).await;
+            }
+        }
     }
+    Ok(1)
 }
+
+
 
 async fn interactive_bot(conn: &rusqlite::Connection) {
     // async fn interactive_bot (userdata: Arc<Mutex<Vec<User>>>, feeddata: Arc<Mutex<ChannelLookupTable>>) {
