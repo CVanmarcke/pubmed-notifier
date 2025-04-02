@@ -45,7 +45,7 @@ maintainer = "C Vanmarcke"
 copyright = "2025, C Vanmarcke"
 extended-description = """\
 A CLI based tool to get pubmed based RSS feeds and send them through telegram."""
-depends = "$auto, systemd"
+depends = "libc6 (>= 2.29), libsqlite3-0 (>= 3.5.9), libssl1.1 (>= 1.1.1), systemd"
 section = "utility"
 priority = "optional"
 assets = [
