@@ -1,11 +1,11 @@
-use chrono::{Local, NaiveTime, TimeDelta, Timelike};
+use chrono::{Local, NaiveTime, TimeDelta};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Root};
 use rss::Item;
 use rssnotify::config::Config;
-use rssnotify::datastructs::{ChannelLookupTable, User};
+use rssnotify::datastructs::User;
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
 use rssnotify::{console_message_handler, db, repl_message_handler};
@@ -55,7 +55,7 @@ async fn main() {
         //     .build("filelogger", LevelFilter::Info))
         .build(Root::builder()
             .appender("stdout")
-            .appender("logfile").build(LevelFilter::Info))
+            .appender("logfile").build(config.log_level))
         .unwrap();
     logger_handle.set_config(log_config);
 
@@ -80,7 +80,7 @@ async fn main() {
     let arcconn = Arc::new(aconn);
 
     if !config.persistent {
-        // TODO
+        log::info!("Running once.");
         let r = db::sqlite::update_channels(&conn).await;
         if let Err(e) = r {
             log::error!("Error when updating the channels: {e:?}");
@@ -228,7 +228,7 @@ async fn send_new_users<S: Sender>(
 ) -> Result<(), rusqlite::Error> {
     let users = db::sqlite::get_users(conn)?;
     let mut new_items: BTreeMap<u32, Vec<&Item>> = BTreeMap::new();
-    let feeds = db::sqlite::get_feeds(conn)?;
+    let mut feeds = db::sqlite::get_feeds(conn)?;
     
     for feed in feeds.iter() {
         new_items.insert(feed.uid.unwrap(), feed.get_new_items_from_last());
@@ -239,7 +239,12 @@ async fn send_new_users<S: Sender>(
         result.push(send_new_user(conn, sender, user, &new_items).await);
         let _ = db::sqlite::update_user(conn, &user);
     }
-    db::sqlite::update_guid_feeds(conn, feeds)?;
+
+    for feed in feeds.iter_mut() {
+        feed.update_guid();
+    }
+
+    db::sqlite::update_guid_feeds(conn, &feeds)?;
     for r in result {
         r?;
     }

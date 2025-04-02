@@ -79,7 +79,7 @@ pub mod sqlite {
     pub fn update_user(conn: &Connection, user: &User) -> Result<usize, rusqlite::Error> {
         let collections = serde_json::to_string(&user.rss_lists)
             .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?;
-        log::info!("Updating user {} in the database", user.chat_id);
+        log::debug!("Updating user {} in the database", user.chat_id);
         conn.execute(
             "UPDATE users
              SET last_pushed = ?1,
@@ -152,20 +152,28 @@ pub mod sqlite {
         }
     }
 
-    pub fn update_guid_feeds(conn: &Connection, feeds: Vec<PubmedFeed>) -> Result<(), rusqlite::Error> {
+    pub fn update_guid_feeds(conn: &Connection, feeds: &Vec<PubmedFeed>) -> Result<(), rusqlite::Error> {
+        // Applies everything, but does not interrupt when there is an error
+        let result: Result<Vec<()>, rusqlite::Error> =
+            feeds.iter()
+                .map(|feed| update_guid_feed(conn, feed))
+                .collect();
+        return result.map(|_| (()));
+    }
+
+    pub fn update_guid_feed(conn: &Connection, feed: &PubmedFeed) -> Result<(), rusqlite::Error> {
         let mut stmt = conn.prepare_cached(
             "UPDATE feeds
                  SET last_pushed_guid = ?1
                  WHERE id = ?2",
         )?;
-        for feed in feeds.iter() {
-            stmt.execute(params![
-                &feed.last_pushed_guid,
-                &feed.uid.unwrap(),
-            ])?;
-        }
+        stmt.execute(params![
+            &feed.last_pushed_guid,
+            &feed.uid.unwrap(),])?;
+        log::debug!("Updated last_pushed_guid of feed {}", &feed.name);
         Ok(())
     }
+
 
     pub fn update_feed(conn: &Connection, feed: &PubmedFeed) -> Result<u32, rusqlite::Error> {
         let channel = serde_json::to_string(&feed.channel)
@@ -196,6 +204,7 @@ pub mod sqlite {
     }
 
     pub async fn update_channels(conn: &Connection) -> Result<u32, rusqlite::Error> {
+        log::info!("Updating all channels...");
         let mut feeds = get_feeds(conn)?;
         let mut result = Vec::new();
         let mut acc = 0;

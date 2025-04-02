@@ -151,7 +151,7 @@ impl PubmedFeed {
 
         let newchannel = self.download_channel().await?;
         self.channel = newchannel;
-        log::info!("Succesfully updated channel {}", &self.name);
+        log::trace!("Succesfully updated channel {}", &self.name);
         Ok(())
     }
 
@@ -175,9 +175,11 @@ impl PubmedFeed {
     pub fn update_guid(&mut self) -> Option<String> {
         let firstitem = self.channel.items().iter().next();
         if let Some(item) = firstitem {
+            log::debug!("Found guid of newest item {:?} in {}", &item.guid, &self.name);
             self.last_pushed_guid = Some(item.guid()?.value.clone());
             return self.last_pushed_guid.clone()
         }
+        log::debug!("Could not find a guid in feed {}", &self.name);
         None
     }
 
