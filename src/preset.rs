@@ -67,6 +67,7 @@ const DEFAULT_BLACKLIST: &[&str] = &[
     "Letter to the Editor",
     "Erratum for: ",
     "Editorial Comment",
+    "Response to \"",
 ];
 
 const AI_BLACKLIST: &[&str] = &[
@@ -74,6 +75,7 @@ const AI_BLACKLIST: &[&str] = &[
     "nomogram",
     "deep learning",
     "deep-learning",
+    "artificial intelligence",
     "histogram",
 ];
 
