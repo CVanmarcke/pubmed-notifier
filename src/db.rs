@@ -41,7 +41,7 @@ pub mod sqlite {
             name        TEXT NOT NULL,
             link        TEXT NOT NULL UNIQUE,
             channel     TEXT NOT NULL,
-            last_pushed_guid   TEXT
+            last_pushed_guid   INTEGER
         )",
             (), // empty list of parameters.
         )?;

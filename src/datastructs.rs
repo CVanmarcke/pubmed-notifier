@@ -39,7 +39,7 @@ pub struct PubmedFeed {
     pub uid: Option<u32>,
     pub link: String,
     pub channel: ChannelWrapper,
-    pub last_pushed_guid: Option<String>,
+    pub last_pushed_guid: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -172,12 +172,15 @@ impl PubmedFeed {
         }
     }
 
-    pub fn update_guid(&mut self) -> Option<String> {
+    pub fn update_guid(&mut self) -> Option<u32> {
         let firstitem = self.channel.items().iter().next();
         if let Some(item) = firstitem {
             log::debug!("Found guid of newest item {:?} in {}", &item.guid, &self.name);
-            self.last_pushed_guid = Some(item.guid()?.value.clone());
-            return self.last_pushed_guid.clone()
+            if item.guid().is_some() {
+                let guid =  ChannelWrapper::parse_guid(item).ok();
+                self.last_pushed_guid = guid;
+                return guid.clone()
+            }
         }
         log::debug!("Could not find a guid in feed {}", &self.name);
         None

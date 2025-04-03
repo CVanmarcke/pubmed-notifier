@@ -4,6 +4,7 @@ use rss::Channel;
 use rss::Item;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
 use std::ops::Deref;
+use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ChannelWrapper(Channel);
@@ -36,15 +37,21 @@ impl ChannelWrapper {
         }
         return Ok(new_items);
     }
-    pub fn get_new_items_from_last<'a>(&'a self, guid: &str) -> Vec<&'a Item> {
+    pub fn get_new_items_from_last<'a>(&'a self, guid: &u32) -> Vec<&'a Item> {
         let mut new_items: Vec<&Item> = Vec::new();
         for item in self.items() {
-            if item.guid().as_ref().unwrap().value() == guid {
+            if ChannelWrapper::parse_guid(item).unwrap_or(0) <= *guid {
                 break;
             }
             new_items.push(item);
         }
         return new_items;
+    }
+
+    pub fn parse_guid(item: &Item) -> Result<u32, <u32 as FromStr>::Err> {
+        item.guid().as_ref()
+            .unwrap()
+            .value().trim_start_matches("pubmed:").parse()
     }
 
 
