@@ -226,6 +226,7 @@ async fn send_new_users<S: Sender>(
     conn: &rusqlite::Connection,
     sender: &S,
 ) -> Result<(), rusqlite::Error> {
+    log::info!("Sending new items to all users");
     let users = db::sqlite::get_users(conn)?;
     let mut new_items: BTreeMap<u32, Vec<&Item>> = BTreeMap::new();
     let mut feeds = db::sqlite::get_feeds(conn)?;

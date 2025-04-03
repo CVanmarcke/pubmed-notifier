@@ -64,10 +64,10 @@ const DEFAULT_URO_WHITELIST: &[&str] = &[
 ];
 
 const DEFAULT_BLACKLIST: &[&str] = &[
-    "Letter to the Editor",
-    "Erratum for: ",
-    "Editorial Comment",
-    "Response to \"",
+    "letter to the editor",
+    "erratum for: ",
+    "editorial comment",
+    "response to \"",
 ];
 
 const AI_BLACKLIST: &[&str] = &[
