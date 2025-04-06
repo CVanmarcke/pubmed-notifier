@@ -45,7 +45,19 @@ impl Config {
         };
         argstruct.apply_args(args)?;
 
+        #[cfg(debug_assertions)]
+        println!("Debug version: setting filepaths to target/debug");
+        #[cfg(debug_assertions)]
+        argstruct.set_paths_debug_mode();
+
         Ok(argstruct)
+    }
+
+    #[cfg(debug_assertions)]
+    fn set_paths_debug_mode(&mut self) {
+        self.log_path = PathBuf::from(expanduser("target/debug/rssnotify.log").unwrap());
+        self.config_path = PathBuf::from(expanduser("rssnotify.toml").unwrap());
+        self.config_path = PathBuf::from(expanduser("target/debug/database.db3").unwrap());
     }
 
     // TODO
