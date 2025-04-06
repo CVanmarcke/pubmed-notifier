@@ -110,6 +110,7 @@ const DEFAULT_ABDOMEN_WHITELIST: &[&str] = &[
     " anal ",
     "uterus",
     "uterine",
+    "endometri",
     "ovary",
     "ovarian",
     "omentum",
