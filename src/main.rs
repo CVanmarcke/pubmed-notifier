@@ -10,13 +10,13 @@ use rssnotify::senders::{ConsoleSender, Sender};
 use rssnotify::{console_message_handler, db, repl_message_handler};
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::{env, fs};
 use std::process;
 use std::sync::Arc;
+use std::{env, fs};
 use teloxide::Bot;
 use teloxide::prelude::*;
-use tokio_rusqlite::Connection;
 use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
+use tokio_rusqlite::Connection;
 
 #[tokio::main]
 async fn main() {
@@ -36,15 +36,16 @@ async fn main() {
 
     log::set_max_level(config.log_level.clone());
     let stdout = ConsoleAppender::builder().build();
-    let filelogs = FileAppender::builder()
-        .build(&config.log_path)
-        .unwrap();
+    let filelogs = FileAppender::builder().build(&config.log_path).unwrap();
     let log_config = log4rs::Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .appender(Appender::builder().build("logfile", Box::new(filelogs)))
-        .build(Root::builder()
-            .appender("stdout")
-            .appender("logfile").build(config.log_level))
+        .build(
+            Root::builder()
+                .appender("stdout")
+                .appender("logfile")
+                .build(config.log_level),
+        )
         .unwrap();
     logger_handle.set_config(log_config);
 
@@ -84,7 +85,6 @@ async fn main() {
             if let Err(e) = send_new_users(&conn, &TelegramSender { bot }).await {
                 log::error!("Error when sending new articles: {e:?}");
             }
-            
         }
         process::exit(1);
     }
@@ -93,7 +93,9 @@ async fn main() {
         interactive_bot(&conn).await
     } else {
         if config.debugmode {
-            scheduler(&config, Arc::clone(&arcconn), ConsoleSender {}).await.unwrap();
+            scheduler(&config, Arc::clone(&arcconn), ConsoleSender {})
+                .await
+                .unwrap();
         } else {
             log::info!("Starting command bot.");
             let bot = Bot::new(config.bot_token.as_ref().unwrap());
@@ -108,7 +110,9 @@ async fn main() {
             });
             log::info!("Starting scheduler.");
             let bot = Bot::new(config.bot_token.as_ref().unwrap());
-            scheduler(&config, arcconn, TelegramSender {bot}).await.unwrap();
+            scheduler(&config, arcconn, TelegramSender { bot })
+                .await
+                .unwrap();
             log::info!("Startup completed. Waiting for updates...");
         }
         loop {
@@ -118,34 +122,44 @@ async fn main() {
 }
 
 // looper(&config, &Arc::clone(&arcconn), ConsoleSender {}).await
-async fn scheduler<'a, S>(config: &Config, conn: Arc<Connection>, sender: S) -> Result<(), JobSchedulerError>
+async fn scheduler<'a, S>(
+    config: &Config,
+    conn: Arc<Connection>,
+    sender: S,
+) -> Result<(), JobSchedulerError>
 where
     S: Sender + Send + Sync + Clone + 'a + 'static,
 {
     let arcconn = Arc::new(conn);
     let cron = format!("0 0 {} * * *", config.update_time);
     let sched = JobScheduler::new().await.unwrap();
-    sched.add(
-        Job::new_async(&cron, move |_uuid, mut _l| {
-            let arcconn = Arc::clone(&arcconn);
-            let sender = sender.clone();
-            Box::pin(async move {
-                if let Err(e) = arcconn
-                    .call(move |conn| {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        rt.block_on(async {
-                            db::sqlite::update_channels(conn).await
-                                .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))?;
-                            send_new_users(conn, &sender ).await
-                                .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))
+    sched
+        .add(
+            Job::new_async(&cron, move |_uuid, mut _l| {
+                let arcconn = Arc::clone(&arcconn);
+                let sender = sender.clone();
+                Box::pin(async move {
+                    if let Err(e) = arcconn
+                        .call(move |conn| {
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            rt.block_on(async {
+                                db::sqlite::update_channels(conn)
+                                    .await
+                                    .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))?;
+                                send_new_users(conn, &sender)
+                                    .await
+                                    .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))
+                            })
                         })
-                    }).await
-                         {
-                             log::error!("Error in the scheduler:\n{:?}", e)
-                         }
+                        .await
+                    {
+                        log::error!("Error in the scheduler:\n{:?}", e)
+                    }
+                })
             })
-        }).unwrap()
-    ).await?;
+            .unwrap(),
+        )
+        .await?;
     sched.start().await?;
     Ok(())
 }
@@ -158,7 +172,7 @@ async fn send_new_users<S: Sender>(
     let users = db::sqlite::get_users(conn)?;
     let mut new_items: BTreeMap<u32, Vec<&Item>> = BTreeMap::new();
     let mut feeds = db::sqlite::get_feeds(conn)?;
-    
+
     for feed in feeds.iter() {
         new_items.insert(feed.uid.unwrap(), feed.get_new_items_from_last());
     }
@@ -180,22 +194,21 @@ async fn send_new_users<S: Sender>(
     Ok(())
 }
 
-
 async fn send_new_user<S: Sender>(
     _conn: &rusqlite::Connection,
     sender: &S,
     user: &User,
-    new_items: &BTreeMap<u32, Vec<&Item>>
+    new_items: &BTreeMap<u32, Vec<&Item>>,
 ) -> Result<usize, rusqlite::Error> {
     for collection in user.rss_lists.iter() {
         for feed_id in collection.feeds.iter() {
-            if let Some(items) =  new_items.get(feed_id) {
+            if let Some(items) = new_items.get(feed_id) {
                 // Make new vec with references to the items
-                let filtered: Vec<&Item> =
-                    items.iter()
-                        .map(|item| *item)
-                        .filter(|item| collection.filter_item(item))
-                        .collect();
+                let filtered: Vec<&Item> = items
+                    .iter()
+                    .map(|item| *item)
+                    .filter(|item| collection.filter_item(item))
+                    .collect();
                 sender.send_items(user, &filtered).await;
             }
         }
@@ -241,7 +254,4 @@ mod tests {
         let then = DateTime::parse_from_rfc2822("Thu, 06 Feb 2025 06:00:00 -0500").unwrap();
         assert!(now > then);
     }
-
 }
-
-

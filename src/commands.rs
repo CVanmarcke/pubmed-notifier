@@ -1,6 +1,6 @@
 use crate::datastructs::{ChannelLookupTable, PubmedFeed, User, UserRssList};
 use crate::formatter::PreppedMessage;
-use crate::preset::{self, available_presets, Keywords, Preset};
+use crate::preset::{self, Keywords, Preset, available_presets};
 use crate::{CustomResult, db};
 use chrono::NaiveDate;
 use rusqlite::Connection;
@@ -85,7 +85,7 @@ pub enum Command {
     #[command(description = "List available presets.", parse_with = "split")]
     Presets,
     #[command(description = "[preset] - Show preset content.", parse_with = "split")]
-    PresetContent {preset: String},
+    PresetContent { preset: String },
     #[command(
         description = "[preset_name] [collection] - Add the content of a preset to a collection.",
         parse_with = "split"
@@ -293,7 +293,8 @@ fn show_collection(
     } else if user.rss_lists.len() == 0 {
         new_collection(conn, user)?;
         Ok(format!(
-            "Collection with index 0 did not exist; created a new empty collection with the default blacklist"))
+            "Collection with index 0 did not exist; created a new empty collection with the default blacklist"
+        ))
     } else {
         Ok(format!(
             "The index is out of range: pick a number between 0 and {}",
@@ -315,7 +316,8 @@ async fn newfeed(conn: &Connection, name: String, link: String) -> CustomResult<
 
 fn new_collection(conn: &Connection, user: &mut User) -> CustomResult<String> {
     let mut collection = UserRssList::new();
-    collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist);
+    collection.blacklist =
+        preset::merge_keyword_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist);
     user.rss_lists.push(collection);
     db::sqlite::update_user(conn, user)?;
     Ok(format!(
@@ -325,16 +327,27 @@ fn new_collection(conn: &Connection, user: &mut User) -> CustomResult<String> {
 }
 
 fn show_presets() -> CustomResult<String> {
-    Ok(format!("Available presets:\n{}\n\nAdd them with \"/addpresettocollection [preset_name] [collection_index]\"", available_presets()))
+    Ok(format!(
+        "Available presets:\n{}\n\nAdd them with \"/addpresettocollection [preset_name] [collection_index]\"",
+        available_presets()
+    ))
 }
 
 fn show_preset_content(conn: &Connection, preset_str: &str) -> CustomResult<String> {
     match preset::parse_preset(&preset_str) {
         Some(preset) => match preset {
-            Preset::Journal(p) => Ok(format!("Content of the preset \"{}\":\n{}", preset_str, db::sqlite::format_feedlist(conn, &preset::get_preset_journals(p))?)),
-            Preset::Keyword(p) => Ok(format!("Content of the preset \"{}\":\n{:?}", preset_str, preset::get_preset_keywords(p))),
+            Preset::Journal(p) => Ok(format!(
+                "Content of the preset \"{}\":\n{}",
+                preset_str,
+                db::sqlite::format_feedlist(conn, &preset::get_preset_journals(p))?
+            )),
+            Preset::Keyword(p) => Ok(format!(
+                "Content of the preset \"{}\":\n{:?}",
+                preset_str,
+                preset::get_preset_keywords(p)
+            )),
         },
-        None => return Ok(format!("'{}' is not a valid preset!", preset_str))
+        None => return Ok(format!("'{}' is not a valid preset!", preset_str)),
     }
 }
 
@@ -347,16 +360,21 @@ fn add_preset_to_collection(
     if let Some(collection) = user.rss_lists.get_mut(collection_index) {
         match preset::parse_preset(&preset) {
             Some(preset) => match preset {
-                Preset::Journal(p) =>
-                collection.feeds = preset::merge_journal_preset_with_set(p, &collection.feeds),
+                Preset::Journal(p) => {
+                    collection.feeds = preset::merge_journal_preset_with_set(p, &collection.feeds)
+                }
                 Preset::Keyword(p) => match p {
-                    Keywords::Uro | Keywords::Abdomen =>
-                collection.whitelist = preset::merge_keyword_preset_with_set(p, &collection.whitelist),
-                    Keywords::DefaultBlacklist | Keywords::AIBlacklist =>
-                collection.blacklist = preset::merge_keyword_preset_with_set(p, &collection.blacklist),
+                    Keywords::Uro | Keywords::Abdomen => {
+                        collection.whitelist =
+                            preset::merge_keyword_preset_with_set(p, &collection.whitelist)
+                    }
+                    Keywords::DefaultBlacklist | Keywords::AIBlacklist => {
+                        collection.blacklist =
+                            preset::merge_keyword_preset_with_set(p, &collection.blacklist)
+                    }
                 },
             },
-            None => return Ok(format!("'{}' is not a valid preset!", preset))
+            None => return Ok(format!("'{}' is not a valid preset!", preset)),
         }
         db::sqlite::update_user(conn, user)?;
         return Ok(format!(
@@ -396,7 +414,10 @@ fn get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<S
     if let Some(items) = tempuser.get_new_items(&feeds) {
         for item in items {
             println!("----------------------------");
-            println!("{}", PreppedMessage::build(item).format(ParseMode::MarkdownV2));
+            println!(
+                "{}",
+                PreppedMessage::build(item).format(ParseMode::MarkdownV2)
+            );
         }
     }
     Ok(format!("Output to sdt..."))

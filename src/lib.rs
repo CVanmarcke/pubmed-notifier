@@ -180,8 +180,6 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101721752/?limit=15&name=Eur%20Radiol%20Exp&utm_campaign=journals",
             "European Radiology Exp",
         ),
-
-
         PubmedFeed::build_from_link(
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/8505245/?limit=10&name=Magn%20Reson%20Med&utm_campaign=journals",
             "Magnetic Resonance in Medicine",
@@ -214,7 +212,6 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101315005/?limit=10&name=J%20Ultrasound&utm_campaign=journals",
             "Journal of Ultrasound",
         ),
-
         PubmedFeed::build_from_link(
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/0374630/?limit=10&name=Gastroenterology&utm_campaign=journals",
             "Gastroenterology",
@@ -223,8 +220,6 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/100966936/?limit=10&name=Pancreatology&utm_campaign=journals",
             "Pancreaticology",
         ),
-
-
         PubmedFeed::build_from_link(
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/7512719/?limit=15&name=Eur%20Urol&utm_campaign=journals",
             "European Urology",
@@ -237,8 +232,6 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101724904/?limit=10&name=Eur%20Urol%20Oncol&utm_campaign=journals",
             "European Urology Oncology",
         ),
-
-
         PubmedFeed::build_from_link(
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/100909747/?limit=10&name=Cochrane%20Database%20Syst%20Rev&utm_campaign=journals",
             "Cochrane Database of Systematic Reviews",
@@ -255,8 +248,6 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
             "https://pubmed.ncbi.nlm.nih.gov/rss/journals/0255562/?limit=20&name=N%20Engl%20J%20Med&utm_campaign=journals",
             "NEJM",
         ),
-
-
     ];
     return feeds.into_iter().map(|x| x.unwrap()).collect();
 }
@@ -276,11 +267,12 @@ mod tests {
         let path = "userdata.json";
         let mut uro_rss_list: UserRssList = UserRssList::new();
 
-        uro_rss_list.whitelist = preset::merge_keyword_preset_with_set(Keywords::Uro, &uro_rss_list.whitelist);
-
+        uro_rss_list.whitelist =
+            preset::merge_keyword_preset_with_set(Keywords::Uro, &uro_rss_list.whitelist);
 
         let mut abdomen_rss_list: UserRssList = UserRssList::new();
-        abdomen_rss_list.whitelist = preset::merge_keyword_preset_with_set(Keywords::Abdomen, &abdomen_rss_list.whitelist);
+        abdomen_rss_list.whitelist =
+            preset::merge_keyword_preset_with_set(Keywords::Abdomen, &abdomen_rss_list.whitelist);
 
         let user = User::build(1234i64, "31 sept 2024".to_string(), vec![uro_rss_list]);
         let user2 = User::build(12344i64, "31 sept 2024".to_string(), vec![abdomen_rss_list]);
@@ -298,12 +290,18 @@ mod tests {
     #[tokio::test]
     async fn test_whitelist() {
         let mut collection = UserRssList::new();
-        collection.whitelist = preset::merge_keyword_preset_with_set(Keywords::Uro, &collection.whitelist);
-        collection.whitelist = preset::merge_keyword_preset_with_set(Keywords::Abdomen, &collection.whitelist);
-        collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::DefaultBlacklist, &collection.blacklist);
-        collection.blacklist = preset::merge_keyword_preset_with_set(Keywords::AIBlacklist, &collection.blacklist);
+        collection.whitelist =
+            preset::merge_keyword_preset_with_set(Keywords::Uro, &collection.whitelist);
+        collection.whitelist =
+            preset::merge_keyword_preset_with_set(Keywords::Abdomen, &collection.whitelist);
+        collection.blacklist = preset::merge_keyword_preset_with_set(
+            Keywords::DefaultBlacklist,
+            &collection.blacklist,
+        );
+        collection.blacklist =
+            preset::merge_keyword_preset_with_set(Keywords::AIBlacklist, &collection.blacklist);
         collection.feeds =
-preset::merge_journal_preset_with_set(Journals::Radiology, &collection.feeds);
+            preset::merge_journal_preset_with_set(Journals::Radiology, &collection.feeds);
         let last_pushed = Local::now() - TimeDelta::days(3);
         println!("printing from {}", last_pushed);
 
@@ -325,8 +323,10 @@ preset::merge_journal_preset_with_set(Journals::Radiology, &collection.feeds);
                 .into_iter()
                 .inspect(|item| {
                     println!("--------------------------------------");
-                    println!("{}", PreppedMessage::build(item)
-                        .format(teloxide::types::ParseMode::MarkdownV2));
+                    println!(
+                        "{}",
+                        PreppedMessage::build(item).format(teloxide::types::ParseMode::MarkdownV2)
+                    );
                 })
                 .filter(|item| item_contains_keyword(item, &collection.whitelist))
                 .inspect(|_| println!("- Passed whitelist"))

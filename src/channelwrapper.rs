@@ -49,12 +49,13 @@ impl ChannelWrapper {
     }
 
     pub fn parse_guid(item: &Item) -> Result<u32, <u32 as FromStr>::Err> {
-        item.guid().as_ref()
+        item.guid()
+            .as_ref()
             .unwrap()
-            .value().trim_start_matches("pubmed:").parse()
+            .value()
+            .trim_start_matches("pubmed:")
+            .parse()
     }
-
-
 }
 
 impl Serialize for ChannelWrapper {

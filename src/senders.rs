@@ -1,10 +1,10 @@
 use rss::Item;
-use teloxide::utils::markdown;
 use std::error::Error;
 use teloxide::RequestError;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::prelude::Requester;
 use teloxide::types::{LinkPreviewOptions, Message, ParseMode};
+use teloxide::utils::markdown;
 use teloxide::{Bot, types::ChatId};
 
 use crate::datastructs::User;
@@ -41,7 +41,10 @@ impl Sender for ConsoleSender {
             "Last_update: {}",
             item.pub_date().unwrap_or("Last update field was empty!")
         );
-        println!("{}", PreppedMessage::build(item).format(ParseMode::MarkdownV2));
+        println!(
+            "{}",
+            PreppedMessage::build(item).format(ParseMode::MarkdownV2)
+        );
 
         Ok(())
     }
@@ -98,18 +101,13 @@ impl TelegramSender {
         Self::send(bot, chat_id, &markdown::escape(message)).await
     }
 
-    pub async fn send(
-        bot: &Bot,
-        chat_id: ChatId,
-        message: &str,
-    ) -> Result<Message, RequestError> {
+    pub async fn send(bot: &Bot, chat_id: ChatId, message: &str) -> Result<Message, RequestError> {
         // IMPORTANT: needs to be cleaned!!
         bot.send_message(chat_id, message)
             .parse_mode(ParseMode::MarkdownV2)
             .link_preview_options(TelegramSender::PREVIEW)
             .await
     }
-
 }
 
 impl Sender for TelegramSender {

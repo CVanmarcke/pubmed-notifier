@@ -25,15 +25,18 @@ impl PreppedMessage {
                 .to_owned(),
         );
 
-        let content_formatted =
-            html2md::rewrite_html(item.content().unwrap_or(""), false);
-                // .replace("**", "*");
+        let content_formatted = html2md::rewrite_html(item.content().unwrap_or(""), false);
+        // .replace("**", "*");
         log::debug!("{}", content_formatted);
 
         let abstr_start = content_formatted.find("**ABSTRACT**\n");
         let pmid_start = content_formatted.find("PMID:[").unwrap_or(0);
         if abstr_start.is_some() && pmid_start > 0 {
-            content = Some(content_formatted[abstr_start.unwrap() + 13..pmid_start].trim().to_string());
+            content = Some(
+                content_formatted[abstr_start.unwrap() + 13..pmid_start]
+                    .trim()
+                    .to_string(),
+            );
         }
 
         let (mut pmid, mut doi) = (None, None);
@@ -128,15 +131,18 @@ impl PreppedMessage {
 
             // TODO TESTEN
             let boldre = Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap();
-            content = boldre.replace_all(&content, |caps: &Captures| -> String {
-                markdown::bold(&caps[1])
-            }).to_string();
+            content = boldre
+                .replace_all(&content, |caps: &Captures| -> String {
+                    markdown::bold(&caps[1])
+                })
+                .to_string();
 
             let re = Regex::new(r"(?m)^([A-Z ]+:) ").unwrap();
             re.replace_all(&content, |caps: &Captures| -> String {
                 format!("\n{} ", markdown::bold(&caps[1]))
             })
-            .trim().to_string()
+            .trim()
+            .to_string()
         } else {
             todo!()
         }
@@ -186,7 +192,6 @@ pub fn format_item_content(item: &Item) -> String {
     return format!("{title}\n{content}");
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::{fs::File, io::Read};
@@ -220,5 +225,3 @@ _Abdominal radiology \(New York\)_
         assert_eq!(message, result)
     }
 }
-
-

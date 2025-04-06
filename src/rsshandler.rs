@@ -29,10 +29,10 @@ mod tests {
 
     use super::*;
     use rss::{Channel, ItemBuilder};
-    use teloxide::types::ParseMode;
     use std::fs;
     use std::fs::File;
     use std::io::BufReader;
+    use teloxide::types::ParseMode;
 
     // #[tokio::test]
     async fn _get_feed_test() {

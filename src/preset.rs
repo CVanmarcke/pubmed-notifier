@@ -1,17 +1,17 @@
 use std::collections::HashSet;
+use std::str::FromStr;
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, EnumString};
-use std::str::FromStr;
 // use strum_macros::EnumIter;
 
 pub enum PresetList {
     Keyword(HashSet<String>),
-    Journal(HashSet<u32>)
+    Journal(HashSet<u32>),
 }
 
 pub enum Preset {
     Keyword(Keywords),
-    Journal(Journals)
+    Journal(Journals),
 }
 
 #[derive(Debug, EnumIter, EnumString)]
@@ -23,7 +23,7 @@ pub enum Keywords {
     #[strum(ascii_case_insensitive)]
     DefaultBlacklist,
     #[strum(ascii_case_insensitive)]
-    AIBlacklist
+    AIBlacklist,
 }
 
 #[derive(Debug, EnumIter, EnumString)]
@@ -79,7 +79,6 @@ const AI_BLACKLIST: &[&str] = &[
     "histogram",
 ];
 
-
 const DEFAULT_ABDOMEN_WHITELIST: &[&str] = &[
     "abdomen",
     "abdominal",
@@ -127,17 +126,11 @@ const DEFAULT_RADIOLOGY_JOURNALS: &[u32] = &[
 ];
 
 const TECHNICAL_RADIOLOGY_JOURNALS: &[u32] = &[
-    8505245, 9105850, 9707935, 7703942, 9440159, 8211547, 101626019, 101315005
+    8505245, 9105850, 9707935, 7703942, 9440159, 8211547, 101626019, 101315005,
 ];
-const CLINICAL_UROLOGY_JOURNALS: &[u32] = &[
-    7512719, 0376374, 101724904
-];
-const CLINICAL_GI_JOURNALS: &[u32] = &[
-    0374630, 100966936
-];
-const CLINICAL_JOURNALS: &[u32] = &[
-    100909747, 101589553, 0255562
-];
+const CLINICAL_UROLOGY_JOURNALS: &[u32] = &[7512719, 0376374, 101724904];
+const CLINICAL_GI_JOURNALS: &[u32] = &[0374630, 100966936];
+const CLINICAL_JOURNALS: &[u32] = &[100909747, 101589553, 0255562];
 
 pub fn available_presets() -> String {
     let mut s = String::from("Keyword preset lists: ");
@@ -158,15 +151,15 @@ pub fn get_preset_keywords(keywords: Keywords) -> HashSet<String> {
         Keywords::DefaultBlacklist => DEFAULT_BLACKLIST,
         Keywords::AIBlacklist => AI_BLACKLIST,
     }
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<HashSet<String>>()
+    .iter()
+    .map(|x| x.to_string())
+    .collect::<HashSet<String>>()
 }
 
 pub fn get_preset(preset: Preset) -> PresetList {
     match preset {
-        Preset::Journal( j ) => PresetList::Journal(get_preset_journals(j)),
-        Preset::Keyword( k ) => PresetList::Keyword(get_preset_keywords(k)),
+        Preset::Journal(j) => PresetList::Journal(get_preset_journals(j)),
+        Preset::Keyword(k) => PresetList::Keyword(get_preset_keywords(k)),
     }
 }
 
@@ -178,18 +171,18 @@ pub fn get_preset_journals(journals: Journals) -> HashSet<u32> {
         Journals::ClinicalUrology => CLINICAL_UROLOGY_JOURNALS,
         Journals::ClinicalGI => CLINICAL_GI_JOURNALS,
     }
-        .iter()
-        .map(|x| *x)
-        .collect::<HashSet<u32>>()
+    .iter()
+    .map(|x| *x)
+    .collect::<HashSet<u32>>()
 }
 
-pub fn merge_keyword_preset_with_set(keywords: Keywords, set: &HashSet<String>)  -> HashSet<String> {
+pub fn merge_keyword_preset_with_set(keywords: Keywords, set: &HashSet<String>) -> HashSet<String> {
     get_preset_keywords(keywords)
         .into_iter()
         .chain(set.iter().cloned())
         .collect::<HashSet<String>>()
 }
-pub fn merge_journal_preset_with_set(journals: Journals, set: &HashSet<u32>)  -> HashSet<u32> {
+pub fn merge_journal_preset_with_set(journals: Journals, set: &HashSet<u32>) -> HashSet<u32> {
     get_preset_journals(journals)
         .into_iter()
         .chain(set.iter().cloned())

@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 
-use chrono::DateTime;
-use chrono::Local;
-use futures::future::join_all;
-use regex::Regex;
 use crate::channelwrapper::ChannelWrapper;
 use crate::rsshandler::item_contains_keyword;
+use chrono::DateTime;
+use chrono::Local;
 use chrono::format::ParseResult;
 use core::str;
+use futures::future::join_all;
+use regex::Regex;
 use rss::Channel;
 use rss::Item;
 use serde::{Deserialize, Serialize};
@@ -80,7 +80,12 @@ impl User {
                 if let Some(pmfeed) = feedmap.get(uid) {
                     // TODO unwrap
                     if let Ok(items) = pmfeed.channel.get_new_items(&self.last_pushed) {
-                        log::trace!("Collected {} new items in feed {} for user {}", items.len(), uid, self.chat_id);
+                        log::trace!(
+                            "Collected {} new items in feed {} for user {}",
+                            items.len(),
+                            uid,
+                            self.chat_id
+                        );
                         // for item in items
                         items
                             .into_iter()
@@ -101,7 +106,6 @@ impl User {
         // None
         // TODO mut self -> edit last updated
     }
-
 
     pub fn add_feed(
         &mut self,
@@ -175,11 +179,15 @@ impl PubmedFeed {
     pub fn update_guid(&mut self) -> Option<u32> {
         let firstitem = self.channel.items().iter().next();
         if let Some(item) = firstitem {
-            log::debug!("Found guid of newest item {:?} in {}", &item.guid, &self.name);
+            log::debug!(
+                "Found guid of newest item {:?} in {}",
+                &item.guid,
+                &self.name
+            );
             if item.guid().is_some() {
-                let guid =  ChannelWrapper::parse_guid(item).ok();
+                let guid = ChannelWrapper::parse_guid(item).ok();
                 self.last_pushed_guid = guid;
-                return guid.clone()
+                return guid.clone();
             }
         }
         log::debug!("Could not find a guid in feed {}", &self.name);
@@ -241,13 +249,11 @@ impl UserRssList {
     }
 
     pub fn filter_item<'a>(&self, item: &'a Item) -> bool {
-        item_contains_keyword(item, &self.whitelist) && !item_contains_keyword(item, &self.blacklist)
+        item_contains_keyword(item, &self.whitelist)
+            && !item_contains_keyword(item, &self.blacklist)
     }
 
-    pub fn filter_items<'a>(
-        &self,
-        items: Vec<&'a Item>
-    ) -> Vec<&'a Item> {
+    pub fn filter_items<'a>(&self, items: Vec<&'a Item>) -> Vec<&'a Item> {
         items
             .into_iter()
             .inspect(|item| log::debug!("Title: {}", item.title().unwrap()))
@@ -256,14 +262,13 @@ impl UserRssList {
             .filter(|item| !item_contains_keyword(item, &self.blacklist))
             // .inspect(|item| log::debug!("Item is included to send: {}", item.title().unwrap()))
             .collect::<Vec<&'a Item>>()
-            // .for_each(|item| to_send.push(item))
-                    // {
-                    //        to_send.push(item)
-                    //                        }
+        // .for_each(|item| to_send.push(item))
+        // {
+        //        to_send.push(item)
+        //                        }
 
         // todo!();
     }
-
 }
 
 impl Default for UserRssList {
@@ -310,15 +315,7 @@ impl ChannelLookupTable {
     pub fn format(&self) -> String {
         let mut s = String::from("[");
         for (key, pmf) in self.iter() {
-            s.push_str(
-                format!(
-                    "{}:\n  id: {}\n  link: {}\n",
-                    pmf.name,
-                    key,
-                    pmf.link
-                )
-                .as_str(),
-            )
+            s.push_str(format!("{}:\n  id: {}\n  link: {}\n", pmf.name, key, pmf.link).as_str())
         }
         s.push_str("]");
         s
@@ -362,7 +359,8 @@ mod tests {
     #[test]
     fn test_jsonconvert() {
         let mut uro_rss_list: UserRssList = UserRssList::new();
-        uro_rss_list.whitelist = preset::merge_keyword_preset_with_set(Keywords::Uro, &uro_rss_list.whitelist);
+        uro_rss_list.whitelist =
+            preset::merge_keyword_preset_with_set(Keywords::Uro, &uro_rss_list.whitelist);
 
         let user = User {
             chat_id: 1234i64,

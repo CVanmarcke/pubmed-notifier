@@ -1,10 +1,10 @@
+use chrono::NaiveTime;
+use expanduser::expanduser;
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 use std::{env, error::Error, path::PathBuf};
 use toml::Table;
-use chrono::NaiveTime;
-use expanduser::expanduser;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -72,30 +72,38 @@ impl Config {
         Ok(config)
     }
 
-
     pub fn apply_toml(&mut self, file_path: &Path) -> Result<(), Box<dyn Error>> {
         let content = fs::read_to_string(file_path)?;
         let table = content.parse::<Table>()?;
-        let table = table["config"].as_table()
+        let table = table["config"]
+            .as_table()
             .ok_or("File does not contain a [config] header!")?;
         for key in table.keys() {
             match key.as_str() {
                 "admin" => self.admin = table["admin"].as_integer(),
                 "bot_token" => match table["bot_token"].as_str() {
                     Some(s) => self.bot_token = Some(s.to_string()),
-                    None => return Err("Invalid value provided to bot_token in the config file!".into()),
+                    None => {
+                        return Err("Invalid value provided to bot_token in the config file!".into());
+                    }
                 },
-                "db_path" => if let Some(db_path) = table["db_path"].as_str() {
-                    self.db_path = PathBuf::from(expanduser(db_path)?)
-                },
+                "db_path" => {
+                    if let Some(db_path) = table["db_path"].as_str() {
+                        self.db_path = PathBuf::from(expanduser(db_path)?)
+                    }
+                }
                 "log_path" => match table["log_path"].as_str() {
                     Some(s) => self.log_path = PathBuf::from(expanduser(s)?),
-                    None => return Err("Invalid value provided to log_path in the config file!".into()),
+                    None => {
+                        return Err("Invalid value provided to log_path in the config file!".into());
+                    }
                 },
-                "update_time" => if let Some(update_time) = table["update_time"].as_str() {
-                    self.update_time = parse_update_time(update_time).unwrap()
-                },
-                _ => ()
+                "update_time" => {
+                    if let Some(update_time) = table["update_time"].as_str() {
+                        self.update_time = parse_update_time(update_time).unwrap()
+                    }
+                }
+                _ => (),
             }
         }
         Ok(())
@@ -161,7 +169,6 @@ fn parse_log_level(level: &str) -> Result<log::LevelFilter, Box<dyn Error>> {
         _ => Err("Invalid log level: off, error, warn, info and debug are valid.".into()),
     }
 }
-
 
 fn parse_update_time(input: &str) -> Result<String, Box<dyn Error>> {
     Ok(String::from(input.trim()))
@@ -242,7 +249,6 @@ mod tests {
         assert_eq!(result.bot_token, Some("token".to_string()));
     }
 
-    
     #[test]
     fn test_toml_reader() {
         let mut config = Config::default();
