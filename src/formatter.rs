@@ -26,13 +26,14 @@ impl PreppedMessage {
         );
 
         let content_formatted =
-            html2md::rewrite_html(item.content().unwrap_or(""), false).replace("**", "*");
+            html2md::rewrite_html(item.content().unwrap_or(""), false);
+                // .replace("**", "*");
         log::debug!("{}", content_formatted);
 
-        let abstr_start = content_formatted.find("*ABSTRACT*\n");
+        let abstr_start = content_formatted.find("**ABSTRACT**\n");
         let pmid_start = content_formatted.find("PMID:[").unwrap_or(0);
         if abstr_start.is_some() && pmid_start > 0 {
-            content = Some(content_formatted[abstr_start.unwrap() + 11..pmid_start].to_string());
+            content = Some(content_formatted[abstr_start.unwrap() + 13..pmid_start].trim().to_string());
         }
 
         let (mut pmid, mut doi) = (None, None);
@@ -125,6 +126,12 @@ impl PreppedMessage {
             content = content.replace(r"&lt;", r"\<");
             content = content.replace(r"&gt;", r"\>");
 
+            // TODO TESTEN
+            let boldre = Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap();
+            content = boldre.replace_all(&content, |caps: &Captures| -> String {
+                markdown::bold(&caps[1])
+            }).to_string();
+
             let re = Regex::new(r"(?m)^([A-Z ]+:) ").unwrap();
             re.replace_all(&content, |caps: &Captures| -> String {
                 format!("\n{} ", markdown::bold(&caps[1]))
@@ -190,3 +197,25 @@ pub fn format_item_content(item: &Item) -> String {
     }
     return format!("{title}\n{content}");
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::db::sqlite;
+
+    use super::*;
+    // use rssnotify::db::sqlite::*;
+
+    #[test]
+    fn test_format() {
+        let conn = sqlite::open("target/debug/database.db3").unwrap();
+        let feed = sqlite::get_feed(&conn, &101674571).unwrap().unwrap();
+        let item = &feed.channel.items[0];
+        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        println!("{}", message);
+        panic!()
+    }
+
+}
+
+
