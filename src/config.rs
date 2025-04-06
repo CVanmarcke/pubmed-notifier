@@ -57,17 +57,12 @@ impl Config {
     fn set_paths_debug_mode(&mut self) {
         self.log_path = PathBuf::from(expanduser("target/debug/rssnotify.log").unwrap());
         self.config_path = PathBuf::from(expanduser("rssnotify.toml").unwrap());
-        self.config_path = PathBuf::from(expanduser("target/debug/database.db3").unwrap());
+        self.db_path = PathBuf::from(expanduser("target/debug/database.db3").unwrap());
     }
 
     // TODO
     pub fn build_from_toml_and_args(args: &[String]) -> Result<Config, Box<dyn Error>> {
-        let bot_token = env::var("TELOXIDE_TOKEN").ok();
-        let mut config: Config = Config {
-            bot_token,
-            ..Default::default()
-        };
-        config.apply_args(args)?; // Populate with args to get file name
+        let mut config = Config::build(args)?;
         if config.config_path.is_file() {
             config.apply_toml(&config.config_path.clone().as_path())?;
             config.apply_args(args)?; // Overwrite with arguments
