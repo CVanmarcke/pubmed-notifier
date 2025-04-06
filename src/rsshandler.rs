@@ -29,6 +29,7 @@ mod tests {
 
     use super::*;
     use rss::{Channel, ItemBuilder};
+    use teloxide::types::ParseMode;
     use std::fs;
     use std::fs::File;
     use std::io::BufReader;
@@ -52,7 +53,7 @@ mod tests {
         let item = &channel.items[0];
         let content: &str = item.content().unwrap();
         println!("{}", content);
-        let formatted = PreppedMessage::build(item).format_as_markdownv2();
+        let formatted = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
         println!("{}", formatted);
         // assert!(false)
     }

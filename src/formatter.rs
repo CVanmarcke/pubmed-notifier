@@ -61,7 +61,7 @@ impl PreppedMessage {
         )
     }
 
-    pub fn format_as_markdownv2(&self) -> String {
+    fn format_as_markdownv2(&self) -> String {
         let mut result = "".to_string();
         let mut footer;
         if let Some(doi) = &self.doi {
@@ -136,7 +136,7 @@ impl PreppedMessage {
             re.replace_all(&content, |caps: &Captures| -> String {
                 format!("\n{} ", markdown::bold(&caps[1]))
             })
-            .to_string()
+            .trim().to_string()
         } else {
             todo!()
         }
@@ -159,18 +159,6 @@ pub fn format_item_content(item: &Item) -> String {
     }
     let source = item.dublin_core_ext().unwrap().sources().iter().next();
 
-    // # Adds newlines to **Conclusion:**
-    // content = re.sub(r'(\w\.)(?: |\n)(\*\*\w)', r'\1\n\n\2', content)
-    // content = re.sub(r'(\w[),:\w])\n(\(?\[?\w)', #fix newlines
-    //                  r'\1 \2',
-    //                  content)
-    // content = re.sub(r'([ -]\d)\n(\(?\[?\w)', #fix newlines with numbers
-    //                  r'\1 \2',
-    //                  content)
-    // # removes too many newlines in certain places when wordwith-\nhyphen
-    // content = re.sub(r'(\w-)\n(\w)', r'\1\2', content)
-    // # If eg "KEY POINTS:"  occurs in the middle of the text, add some new lines before it
-    // content = re.sub(r'\. ([A-Z ]{7,}: )', r'.\n\n\1', content)
     let abstr_start = content.find("*ABSTRACT*\n");
     let pmid_start = content.find("PMID:[").unwrap();
     if let Some(x) = abstr_start {
@@ -201,21 +189,36 @@ pub fn format_item_content(item: &Item) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::sqlite;
+    use std::{fs::File, io::Read};
+
+    use crate::channelwrapper::ChannelWrapper;
 
     use super::*;
     // use rssnotify::db::sqlite::*;
 
     #[test]
     fn test_format() {
-        let conn = sqlite::open("target/debug/database.db3").unwrap();
-        let feed = sqlite::get_feed(&conn, &101674571).unwrap().unwrap();
-        let item = &feed.channel.items[0];
-        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
-        println!("{}", message);
-        panic!()
-    }
+        let mut file = File::open("test/samplechannel.xml").unwrap();
+        let mut json = String::new();
+        file.read_to_string(&mut json).unwrap();
+        let channel = ChannelWrapper::from_json(&json).unwrap();
 
+        let item = &channel.items[0];
+        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        let result = r"[Deep learning assisted detection and segmentation of uterine fibroids using multi\-orientation magnetic resonance imaging](https://doi\.org/10\.1007/s00261\-025\-04934\-8)
+_Abdominal radiology \(New York\)_
+
+*PURPOSE:* To develop deep learning models for automated detection and segmentation of uterine fibroids using multi\-orientation MRI\.
+
+*METHODS:* Pre\-treatment sagittal and axial T2\-weighted MRI scans acquired from patients diagnosed with uterine fibroids were collected\. The proposed segmentation models were constructed based on the three\-dimensional nnU\-Net framework\. Fibroid detection efficacy was assessed, with subgroup analyses by size and location\. The segmentation performance was evaluated using Dice similarity coefficients \(DSCs\), 95% Hausdorff distance \(HD95\), and average surface distance \(ASD\)\.
+
+*RESULTS:* The internal dataset comprised 299 patients who were divided into the training set \(n \= 239\) and the internal test set \(n \= 60\)\. The external dataset comprised 45 patients\. The sagittal T2WI model and the axial T2WI model demonstrated recalls of 74\.4%/76\.4% and precision of 98\.9%/97\.9% for fibroid detection in the internal test set\. The models achieved recalls of 93\.7%/95\.3% for fibroids ≥4 cm\. The recalls for International Federation of Gynecology and Obstetrics \(FIGO\) type 2\-5, FIGO types 0\\1\\2\(submucous\), fibroids FIGO types 5\\6\\7\(subserous\) were 100%/100%, 73\.3%/78\.6%, and 80\.3%/81\.9%, respectively\. The proposed models demonstrated good performance in segmentation of the uterine fibroids with mean DSCs of 0\.789 and 0\.804, HD95s of 9\.996 and 10\.855 mm, and ASDs of 2\.035 and 2\.115 mm in the internal test set, and with mean DSCs of 0\.834 and 0\.818, HD95s of 9\.971 and 11\.874 mm, and ASDs of 2\.031 and 2\.273 mm in the external test set\.
+
+*CONCLUSION:* The proposed deep learning models showed promise as reliable methods for automating the detection and segmentation of the uterine fibroids, particularly those of clinical relevance\.
+[Link](https://doi\.org/10\.1007/s00261\-025\-04934\-8) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40188260) \| [QxMD](https://qxmd\.com/r/40188260)";
+
+        assert_eq!(message, result)
+    }
 }
 
 

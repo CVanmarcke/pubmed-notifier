@@ -4,6 +4,7 @@ use crate::preset::{self, available_presets, Keywords, Preset};
 use crate::{CustomResult, db};
 use chrono::NaiveDate;
 use rusqlite::Connection;
+use teloxide::types::ParseMode;
 use teloxide::utils::command::BotCommands;
 
 #[derive(BotCommands, PartialEq, Debug, Clone)]
@@ -395,7 +396,7 @@ fn get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<S
     if let Some(items) = tempuser.get_new_items(&feeds) {
         for item in items {
             println!("----------------------------");
-            println!("{}", PreppedMessage::build(item).format_as_markdownv2());
+            println!("{}", PreppedMessage::build(item).format(ParseMode::MarkdownV2));
         }
     }
     Ok(format!("Output to sdt..."))

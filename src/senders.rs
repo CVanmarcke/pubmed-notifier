@@ -41,7 +41,7 @@ impl Sender for ConsoleSender {
             "Last_update: {}",
             item.pub_date().unwrap_or("Last update field was empty!")
         );
-        println!("{}", PreppedMessage::build(item).format_as_markdownv2());
+        println!("{}", PreppedMessage::build(item).format(ParseMode::MarkdownV2));
 
         Ok(())
     }
@@ -119,7 +119,7 @@ impl Sender for TelegramSender {
         item: &Item,
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
         if item.content().is_some() {
-            let formatted = PreppedMessage::build(item).format_as_markdownv2();
+            let formatted = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
             log::trace!("Sending the following item to userid {}", user.chat_id);
             log::trace!("{}", formatted);
             let result = self.send_message(ChatId(user.chat_id), &formatted).await;

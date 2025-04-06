@@ -326,7 +326,7 @@ preset::merge_journal_preset_with_set(Journals::Radiology, &collection.feeds);
                 .inspect(|item| {
                     println!("--------------------------------------");
                     println!("{}", PreppedMessage::build(item)
-                        .format_as_markdownv2());
+                        .format(teloxide::types::ParseMode::MarkdownV2));
                 })
                 .filter(|item| item_contains_keyword(item, &collection.whitelist))
                 .inspect(|_| println!("- Passed whitelist"))
