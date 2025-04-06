@@ -6,7 +6,7 @@ use toml::Table;
 use chrono::NaiveTime;
 use expanduser::expanduser;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub debugmode: bool,
     pub interactive: bool,

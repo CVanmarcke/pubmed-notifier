@@ -10,7 +10,7 @@ use teloxide::utils::command::BotCommands;
 #[command(
     rename_rule = "lowercase",
     parse_with = "split",
-    description = "These commands are supported:"
+    description = "These commands are supported. Note that when you need a space in a keyword or name, you need to type _ instead."
 )]
 pub enum Command {
     #[command(hide)]
@@ -158,7 +158,7 @@ fn add_feed_to_collection(
         return Ok(format!("Feed {} does not exist.", feed_id));
     }
     Ok(format!(
-        "The index is out of range: pick a number between 0 and {}",
+        "The index is out of range: pick a number between 0 and {}, or create a new collection with /newcollection",
         user.rss_lists.len().saturating_sub(1)
     ))
 }
@@ -183,7 +183,7 @@ fn remove_feed_from_collection(
         ));
     }
     Ok(format!(
-        "The index is out of range: pick a number between 0 and {}",
+        "The index is out of range: pick a number between 0 and {}, or create a new collection with /newcollection",
         user.rss_lists.len().saturating_sub(1)
     ))
 }
@@ -204,7 +204,7 @@ fn add_to_whitelist(
         ));
     }
     Ok(format!(
-        "The index is out of range: pick a number between 0 and {}",
+        "The index is out of range: pick a number between 0 and {}, or create a new collection with /newcollection",
         user.rss_lists.len().saturating_sub(1)
     ))
 }
@@ -225,7 +225,7 @@ fn add_to_blacklist(
         ));
     }
     Ok(format!(
-        "The index is out of range: pick a number between 0 and {}",
+        "The index is out of range: pick a number between 0 and {}, or create a new collection with /newcollection",
         user.rss_lists.len().saturating_sub(1)
     ))
 }
@@ -251,7 +251,7 @@ fn remove_from_whitelist(
         ));
     }
     Ok(format!(
-        "The index is out of range: pick a number between 0 and {}",
+        "The index is out of range: pick a number between 0 and {}, or create a new collection with /newcollection",
         user.rss_lists.len().saturating_sub(1)
     ))
 }
@@ -277,7 +277,7 @@ fn remove_from_blacklist(
         ));
     }
     Ok(format!(
-        "The index is out of range: pick a number between 0 and {}",
+        "The index is out of range: pick a number between 0 and {}, or create a new collection with /newcollection",
         user.rss_lists.len().saturating_sub(1)
     ))
 }
@@ -289,6 +289,10 @@ fn show_collection(
 ) -> CustomResult<String> {
     if let Some(collection) = user.rss_lists.get(collection_index) {
         db::sqlite::format_collection(conn, collection)
+    } else if user.rss_lists.len() == 0 {
+        new_collection(conn, user)?;
+        Ok(format!(
+            "Collection with index 0 did not exist; created a new empty collection with the default blacklist"))
     } else {
         Ok(format!(
             "The index is out of range: pick a number between 0 and {}",
