@@ -3,19 +3,21 @@ use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Root};
 use rss::Item;
+use rssnotify::commands::{AdminCommand, Command};
 use rssnotify::config::Config;
 use rssnotify::datastructs::User;
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
-use rssnotify::{console_message_handler, db, repl_message_handler};
+use rssnotify::{admin_message_handler, console_message_handler, db, user_message_handler};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::process;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{env, fs};
 use teloxide::Bot;
 use teloxide::prelude::*;
-use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
+use tokio_cron_scheduler::{JobBuilder, JobScheduler, JobSchedulerError};
 use tokio_rusqlite::Connection;
 
 #[tokio::main]
@@ -92,31 +94,72 @@ async fn main() {
     if config.interactive {
         interactive_bot(&conn).await
     } else {
-        if config.debugmode {
-            scheduler(&config, Arc::clone(&arcconn), ConsoleSender {})
+        let handler = Update::filter_message()
+            // You can use branching to define multiple ways in which an update will be handled. If the
+            // first branch fails, an update will be passed to the second branch, and so on.
+            .branch(
+                dptree::entry()
+                    // Filter commands: the next handlers will receive a parsed `SimpleCommand`.
+                    .filter_command::<Command>()
+                    // If a command parsing fails, this handler will not be executed.
+                    .endpoint(user_message_handler),
+            )
+            .branch(
+                // Filter a maintainer by a user ID.
+                dptree::filter(|admin: Option<u64>, msg: Message| {
+                    msg.from
+                        .map(|user| Some(user.id.0) == admin)
+                        .unwrap_or_default()
+                })
+                .filter_command::<AdminCommand>()
+                .endpoint(admin_message_handler),
+            )
+            .branch(dptree::endpoint(|bot: Bot, msg: Message| async move {
+                bot.send_message(
+                    msg.chat.id,
+                    format!("Invalid command. Send /help for a list of valid commands."),
+                )
+                .await?;
+                Ok(())
+            }));
+
+        // if config.debugmode {
+        //     scheduler(&config, Arc::clone(&arcconn), ConsoleSender {})
+        //         .await
+        //         .unwrap();
+        // } else {
+        log::info!("Starting command bot.");
+        let bot = Bot::new(config.bot_token.as_ref().unwrap());
+        let state = Arc::clone(&arcconn);
+        // let admin = Arc::new(config.admin.clone());
+        let admin = config.admin.clone();
+        tokio::task::spawn(async move {
+            // Dispatcher::builder(bot, Update::filter_message().endpoint(user_message_handler))
+            Dispatcher::builder(bot, handler)
+                .dependencies(dptree::deps![state, admin])
+                .build()
+                .dispatch()
                 .await
-                .unwrap();
-        } else {
-            log::info!("Starting command bot.");
-            let bot = Bot::new(config.bot_token.as_ref().unwrap());
-            let state = Arc::clone(&arcconn);
-            let configclone = config.clone();
-            tokio::task::spawn(async {
-                Dispatcher::builder(bot, Update::filter_message().endpoint(repl_message_handler))
-                    .dependencies(dptree::deps![state, configclone])
-                    .build()
-                    .dispatch()
-                    .await
-            });
-            log::info!("Starting scheduler.");
-            let bot = Bot::new(config.bot_token.as_ref().unwrap());
-            scheduler(&config, arcconn, TelegramSender { bot })
-                .await
-                .unwrap();
-            log::info!("Startup completed. Waiting for updates...");
-        }
+        });
+        log::info!("Starting scheduler.");
+        let bot = Bot::new(config.bot_token.as_ref().unwrap());
+        let mut sched = scheduler(&config, arcconn, TelegramSender { bot })
+            .await
+            .unwrap();
+        log::info!("Startup completed. Waiting for updates...");
+        // }
         loop {
-            tokio::time::sleep(std::time::Duration::new(100, 0)).await;
+            let time_till = sched.time_till_next_job().await;
+            match time_till {
+                Ok(Some(ts)) => {
+                    println!("Next time for job is {:?}", ts);
+                    tokio::time::sleep(ts).await
+                }
+                _ => {
+                    println!("Could not get next tick for job");
+                    tokio::time::sleep(Duration::from_secs(100)).await
+                }
+            }
         }
     }
 }
@@ -126,42 +169,47 @@ async fn scheduler<'a, S>(
     config: &Config,
     conn: Arc<Connection>,
     sender: S,
-) -> Result<(), JobSchedulerError>
+) -> Result<JobScheduler, JobSchedulerError>
 where
     S: Sender + Send + Sync + Clone + 'a + 'static,
 {
     let arcconn = Arc::new(conn);
     let cron = format!("0 0 {} * * *", config.update_time);
     let sched = JobScheduler::new().await.unwrap();
-    sched
-        .add(
-            Job::new_async(&cron, move |_uuid, mut _l| {
-                let arcconn = Arc::clone(&arcconn);
-                let sender = sender.clone();
-                Box::pin(async move {
-                    if let Err(e) = arcconn
-                        .call(move |conn| {
-                            let rt = tokio::runtime::Runtime::new().unwrap();
-                            rt.block_on(async {
-                                db::sqlite::update_channels(conn)
-                                    .await
-                                    .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))?;
-                                send_new_users(conn, &sender)
-                                    .await
-                                    .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))
-                            })
+
+    let job = JobBuilder::new()
+        .with_timezone(chrono::Local)
+        // .with_timezone(chrono_tz::Europe::Brussels)
+        .with_cron_job_type()
+        .with_schedule(cron)
+        .unwrap()
+        .with_run_async(Box::new(move |_uuid, mut _l| {
+            let arcconn = Arc::clone(&arcconn);
+            let sender = sender.clone();
+            Box::pin(async move {
+                if let Err(e) = arcconn
+                    .call(move |conn| {
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        rt.block_on(async {
+                            db::sqlite::update_channels(conn)
+                                .await
+                                .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))?;
+                            send_new_users(conn, &sender)
+                                .await
+                                .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))
                         })
-                        .await
-                    {
-                        log::error!("Error in the scheduler:\n{:?}", e)
-                    }
-                })
+                    })
+                    .await
+                {
+                    log::error!("Error in the scheduler:\n{:?}", e)
+                }
             })
-            .unwrap(),
-        )
-        .await?;
+        }))
+        .build()
+        .unwrap();
+    sched.add(job).await?;
     sched.start().await?;
-    Ok(())
+    Ok(sched)
 }
 
 async fn send_new_users<S: Sender>(

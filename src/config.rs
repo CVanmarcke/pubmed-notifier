@@ -14,11 +14,10 @@ pub struct Config {
     pub db_path: PathBuf,
     pub bot_token: Option<String>,
     pub persistent: bool,
-    // pub update_time: Vec<NaiveTime>,
     pub update_time: String,
     pub log_level: log::LevelFilter,
     pub log_path: PathBuf,
-    pub admin: Option<i64>,
+    pub admin: Option<u64>,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -80,11 +79,18 @@ impl Config {
             .ok_or("File does not contain a [config] header!")?;
         for key in table.keys() {
             match key.as_str() {
-                "admin" => self.admin = table["admin"].as_integer(),
+                // TODO
+                "admin" => {
+                    self.admin = table["admin"]
+                        .as_integer()
+                        .map(|int| int.try_into().unwrap())
+                }
                 "bot_token" => match table["bot_token"].as_str() {
                     Some(s) => self.bot_token = Some(s.to_string()),
                     None => {
-                        return Err("Invalid value provided to bot_token in the config file!".into());
+                        return Err(
+                            "Invalid value provided to bot_token in the config file!".into()
+                        );
                     }
                 },
                 "db_path" => {
