@@ -7,6 +7,35 @@ use rusqlite::Connection;
 use teloxide::types::ParseMode;
 use teloxide::utils::command::BotCommands;
 
+#[derive(BotCommands, Clone)]
+#[command(rename_rule = "lowercase", parse_with = "split")]
+pub enum AdminCommand {
+    // GetNewSince { date: String }, // in format YYY-mm-dd
+    Update,
+    Users,
+    AsUser { id: i64, msg: String },
+}
+
+pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> CustomResult<String> {
+    let command = AdminCommand::parse(msg, "");
+    if command.is_err() {
+        return Err(format!(
+            "\"{}\" is not a valid command! Send /help to view the list of valid commands.",
+            msg
+        )
+        .into());
+    }
+    match command.unwrap() {
+        // AdminCommand::GetNewSince {date} => exec_admin(admin, user, || get_new_since(conn, user, date)), // in format YYY-mm-dd
+        AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
+        AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
+        AdminCommand::Update => db::sqlite::update_channels(conn)
+            .await
+            .map(|_| "Updated channels".to_string())
+            .map_err(|e| e.into()),
+    }
+}
+
 #[derive(BotCommands, PartialEq, Debug, Clone)]
 #[command(
     rename_rule = "lowercase",
@@ -85,7 +114,7 @@ pub enum Command {
     #[command(description = "List available presets.", parse_with = "split")]
     Presets,
     #[command(description = "[preset] - Show preset content.", parse_with = "split")]
-    PresetContent { preset: String },
+    Preset { preset: String },
     #[command(
         description = "[preset_name] [collection] - Add the content of a preset to a collection.",
         parse_with = "split"
@@ -94,23 +123,23 @@ pub enum Command {
         preset: String,
         collection_index: usize,
     },
-    #[command(hide)]
-    GetLastUpdate,
-    #[command(hide)]
-    SetLastUpdate { date: String }, // in format YYY-mm-dd
-    #[command(hide)]
-    GetNewSince { date: String }, // in format YYY-mm-dd
-    #[command(hide)]
-    Update,
 }
 
-pub async fn message_handler(
+pub async fn user_command_handler(
     msg: &str,
     user: &mut User,
     conn: &rusqlite::Connection,
 ) -> CustomResult<String> {
-    let command = Command::parse(msg, "")?; // TODO evt veranderen naar Command::Help
-    match command {
+    let command = Command::parse(msg, "");
+    if command.is_err() {
+        return Err(format!(
+            "\"{}\" is not a valid command! Send /help to view the list of valid commands.",
+            msg
+        )
+        .into());
+    }
+
+    match command.unwrap() {
         Command::Start => Ok("Welcome to the telegram pubmed notifier bot! Send /help for a list of available commands.".to_string()),
         Command::Help => Ok(Command::descriptions().to_string()),
         Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num]", user.rss_lists.len())) ,
@@ -125,13 +154,26 @@ pub async fn message_handler(
         Command::RemoveFromBlacklist { keyword, collection_index } => remove_from_blacklist(conn, user, keyword, collection_index),
         Command::NewCollection => new_collection(conn, user),
         Command::Presets => show_presets(),
-        Command::PresetContent {preset} => show_preset_content(conn, &preset),
+        Command::Preset {preset} => show_preset_content(conn, &preset),
         Command::AddPresetToCollection { preset, collection_index} => add_preset_to_collection(conn, user, preset, collection_index),
-        Command::GetLastUpdate => get_last_update(user),
-        Command::SetLastUpdate {date} => set_last_update(conn, user, date),
-        Command::GetNewSince {date} => get_new_since(conn, user, date), // in format YYY-mm-dd
-        Command::Update => db::sqlite::update_channels(conn).await.map(|_| "Updated channels".to_string()).map_err(|e| e.into())
     }
+}
+
+fn get_users(conn: &Connection) -> CustomResult<String> {
+    let users = db::sqlite::get_users(conn)?;
+    let mut r = "Users:\n".to_string();
+    for user in users {
+        r.push_str(&format!("{}, ", user.chat_id));
+    }
+    Ok(r)
+}
+
+async fn as_user(conn: &Connection, user_id: i64, msg: &str) -> CustomResult<String> {
+    let mut other_user = db::sqlite::get_user(conn, user_id)?;
+    if other_user.is_none() {
+        return Ok("User does not exist.".to_string());
+    }
+    return user_command_handler(msg, other_user.as_mut().unwrap(), conn).await;
 }
 
 fn list_feeds(conn: &Connection) -> CustomResult<String> {
@@ -388,11 +430,7 @@ fn add_preset_to_collection(
     ))
 }
 
-fn get_last_update(user: &User) -> CustomResult<String> {
-    Ok(user.last_pushed.clone())
-}
-
-fn set_last_update(conn: &Connection, user: &mut User, date: String) -> CustomResult<String> {
+fn _set_last_update(conn: &Connection, user: &mut User, date: String) -> CustomResult<String> {
     let newdate = NaiveDate::parse_from_str(&date, "%Y-%m-%d")?
         .and_hms_opt(0, 0, 0)
         .unwrap()
@@ -402,7 +440,7 @@ fn set_last_update(conn: &Connection, user: &mut User, date: String) -> CustomRe
     return Ok(format!("Changed the last updated time to {}", newdate));
 }
 
-fn get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<String> {
+fn _get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<String> {
     let mut tempuser = user.clone();
     let newdate = NaiveDate::parse_from_str(&date, "%Y-%m-%d")?
         .and_hms_opt(0, 0, 0)

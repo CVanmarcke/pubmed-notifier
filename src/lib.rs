@@ -1,6 +1,7 @@
 use crate::datastructs::PubmedFeed;
 use crate::datastructs::User;
-use commands::message_handler;
+use commands::admin_command_handler;
+use commands::user_command_handler;
 use senders::TelegramSender;
 use serde::Serialize;
 use serde_json;
@@ -42,13 +43,41 @@ pub fn load_userlist(path: &str) -> Result<Vec<User>, io::Error> {
 
 type CustomResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-pub async fn repl_message_handler(
+pub async fn admin_message_handler(
     bot: Bot,
     msg: Message,
     conn: Arc<tokio_rusqlite::Connection>,
 ) -> ResponseResult<()> {
-    // pub async fn repl_message_handler(bot: Bot, msg: Message, cmd: Command, conn: &Connection) -> Result<(),Box<dyn std::error::Error + Send + Sync>> {
+    let text = String::from(msg.text().unwrap_or(""));
+    let answerstring = conn
+        .call(move |conn| {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                admin_command_handler(&text, conn)
+                    .await
+                    .map_err(|e| tokio_rusqlite::Error::Other(e))
+            })
+        })
+        .await
+        .map_err(|e| RequestError::Io(std::io::Error::other(format!("{e:?}"))))?;
 
+    if answerstring.len() > 4000 {
+        let document = InputFile::memory(answerstring).file_name("reply.txt");
+        bot.send_document(msg.chat.id, document)
+            .caption("Answer is provided in the file as it was too long.")
+            .send()
+            .await?;
+    } else {
+        TelegramSender::send_message_bot(&bot, msg.chat.id, &answerstring).await?;
+    }
+    Ok(())
+}
+
+pub async fn user_message_handler(
+    bot: Bot,
+    msg: Message,
+    conn: Arc<tokio_rusqlite::Connection>,
+) -> ResponseResult<()> {
     let chat_id = msg.clone().chat.id.0.clone();
     let text = String::from(msg.text().unwrap_or(""));
 
@@ -63,7 +92,7 @@ pub async fn repl_message_handler(
 
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                message_handler(&text, &mut ur.unwrap(), conn)
+                user_command_handler(&text, &mut ur.unwrap(), conn)
                     .await
                     .map_err(|e| tokio_rusqlite::Error::Other(e))
             })
@@ -94,7 +123,7 @@ pub async fn console_message_handler(
         ur = Some(User::new(chat_id));
         db::sqlite::add_user(conn, &ur.as_ref().unwrap())?;
     }
-    match message_handler(text, &mut ur.unwrap(), conn).await {
+    match user_command_handler(text, &mut ur.unwrap(), conn).await {
         Ok(response) => println!("{}", response),
         Err(e) => println!("Error: {e:?}. Try /help for the list of available commands."),
     }
@@ -264,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_write_userdata() {
-        let path = "userdata.json";
+        let path = "target/debug/userdata.json";
         let mut uro_rss_list: UserRssList = UserRssList::new();
 
         uro_rss_list.whitelist =
@@ -284,7 +313,7 @@ mod tests {
     fn test_write_feedlist() {
         let list = ChannelLookupTable::from_vec(make_feedlist()).unwrap();
         let s = serde_json::to_string(&list).unwrap();
-        write_data(&s, "feedlist.json").expect("Error writing data");
+        write_data(&s, "target/debug/feedlist.json").expect("Error writing data");
     }
 
     #[tokio::test]
@@ -305,8 +334,7 @@ mod tests {
         let last_pushed = Local::now() - TimeDelta::days(3);
         println!("printing from {}", last_pushed);
 
-        let conn = db::sqlite::open("database.db3").unwrap();
-        // db::sqlite::update_channels(&conn).await;
+        let conn = db::sqlite::open("target/debug/database.db3").unwrap();
 
         let mut to_send = Vec::new();
         for uid in &collection.feeds {
