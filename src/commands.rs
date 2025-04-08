@@ -13,6 +13,7 @@ pub enum AdminCommand {
     // GetNewSince { date: String }, // in format YYY-mm-dd
     Update,
     Users,
+    // TODO custom parser function
     AsUser { id: i64, msg: String },
 }
 
@@ -173,6 +174,7 @@ async fn as_user(conn: &Connection, user_id: i64, msg: &str) -> CustomResult<Str
     if other_user.is_none() {
         return Ok("User does not exist.".to_string());
     }
+    // TODO if error, return error, or check if valid command...
     return user_command_handler(msg, other_user.as_mut().unwrap(), conn).await;
 }
 

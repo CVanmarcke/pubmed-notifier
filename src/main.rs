@@ -131,8 +131,9 @@ async fn main() {
         log::info!("Starting command bot.");
         let bot = Bot::new(config.bot_token.as_ref().unwrap());
         let state = Arc::clone(&arcconn);
-        let admin = Arc::new(config.admin.clone());
-        tokio::task::spawn(async {
+        // let admin = Arc::new(config.admin.clone());
+        let admin = config.admin.clone();
+        tokio::task::spawn(async move {
             // Dispatcher::builder(bot, Update::filter_message().endpoint(user_message_handler))
             Dispatcher::builder(bot, handler)
                 .dependencies(dptree::deps![state, admin])
