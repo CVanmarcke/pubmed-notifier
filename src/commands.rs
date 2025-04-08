@@ -5,37 +5,7 @@ use crate::{CustomResult, db};
 use chrono::NaiveDate;
 use rusqlite::Connection;
 use teloxide::types::ParseMode;
-use teloxide::utils::command::BotCommands;
-
-#[derive(BotCommands, Clone)]
-#[command(rename_rule = "lowercase", parse_with = "split")]
-pub enum AdminCommand {
-    // GetNewSince { date: String }, // in format YYY-mm-dd
-    Update,
-    Users,
-    // TODO custom parser function
-    AsUser { id: i64, msg: String },
-}
-
-pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> CustomResult<String> {
-    let command = AdminCommand::parse(msg, "");
-    if command.is_err() {
-        return Err(format!(
-            "\"{}\" is not a valid command! Send /help to view the list of valid commands.",
-            msg
-        )
-        .into());
-    }
-    match command.unwrap() {
-        // AdminCommand::GetNewSince {date} => exec_admin(admin, user, || get_new_since(conn, user, date)), // in format YYY-mm-dd
-        AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
-        AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
-        AdminCommand::Update => db::sqlite::update_channels(conn)
-            .await
-            .map(|_| "Updated channels".to_string())
-            .map_err(|e| e.into()),
-    }
-}
+use teloxide::utils::command::{BotCommands, ParseError};
 
 #[derive(BotCommands, PartialEq, Debug, Clone)]
 #[command(
@@ -463,10 +433,60 @@ fn _get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<
     Ok(format!("Output to sdt..."))
 }
 
+#[derive(BotCommands, Clone)]
+#[command(rename_rule = "lowercase", parse_with = "split")]
+pub enum AdminCommand {
+    // GetNewSince { date: String }, // in format YYY-mm-dd
+    Update,
+    Users,
+    #[command(parse_with = as_user_parser)]
+    AsUser { id: i64, msg: String },
+}
+
+pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> CustomResult<String> {
+    let command = AdminCommand::parse(msg, "");
+    if command.is_err() {
+        return Err(format!(
+            "\"{}\" is not a valid command! Send /help to view the list of valid commands.",
+            msg
+        )
+        .into());
+    }
+    match command.unwrap() {
+        // AdminCommand::GetNewSince {date} => exec_admin(admin, user, || get_new_since(conn, user, date)), // in format YYY-mm-dd
+        AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
+        AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
+        AdminCommand::Update => db::sqlite::update_channels(conn)
+            .await
+            .map(|_| "Updated channels".to_string())
+            .map_err(|e| e.into()),
+    }
+}
+
+fn as_user_parser(s: String) -> Result<(i64, String), ParseError> {
+    match s.find(" ") {
+        Some(first_space) => {
+            let id = s[0..first_space]
+                .parse::<i64>()
+                .map_err(|e| ParseError::IncorrectFormat(e.into()))?;
+            return Ok((id, s[first_space+1..].to_string()))
+        },
+        None => Err(ParseError::Custom(format!("Wrong command. Provide a UserId and a command, divided with spaces.").into()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::prelude::*;
+
+    #[test]
+    fn test_as_user_parser() {
+        assert_eq!(as_user_parser("136743 /collection 0".to_string()).unwrap(), (136743, "/collection 0".to_string()));
+        assert!(as_user_parser("aa 1234".to_string()).is_err());
+        assert!(as_user_parser("1234".to_string()).is_err());
+    }
+
 
     #[test]
     fn test_date() {
