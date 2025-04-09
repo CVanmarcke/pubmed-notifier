@@ -61,7 +61,7 @@ pub mod sqlite {
     {
         conn.call(|conn| {
             let result = func(conn);
-            Ok(result.map_err(|e| tokio_rusqlite::Error::Other(e.into()))?)
+            result.map_err(|e| tokio_rusqlite::Error::Other(e.into()))
         })
         .await
         .map_err(|e| RequestError::Io(std::io::Error::other(e.to_string())))
@@ -165,7 +165,7 @@ pub mod sqlite {
             .iter()
             .map(|feed| update_guid_feed(conn, feed))
             .collect();
-        return result.map(|_| (()));
+        result.map(|_| (()))
     }
 
     pub fn update_guid_feed(conn: &Connection, feed: &PubmedFeed) -> Result<(), rusqlite::Error> {

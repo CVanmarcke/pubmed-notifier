@@ -61,10 +61,10 @@ impl User {
         }
     }
     pub fn to_json(&self) -> serde_json::Result<String> {
-        return serde_json::to_string(&self);
+        serde_json::to_string(&self)
     }
     pub fn build_from_json(json: &String) -> serde_json::Result<User> {
-        return serde_json::from_str(json);
+        serde_json::from_str(json)
     }
     // TODO
     pub fn get_new_items<'a>(
@@ -131,7 +131,7 @@ impl PubmedFeed {
     pub async fn download_channel(&self) -> Result<ChannelWrapper, Box<dyn Error + Sync + Send>> {
         let content = reqwest::get(self.get_link()).await?.bytes().await?;
         let channel = Channel::read_from(&content[..])?;
-        return Ok(ChannelWrapper::build(channel));
+        Ok(ChannelWrapper::build(channel))
     }
 
     // TODO is double function
@@ -167,7 +167,7 @@ impl PubmedFeed {
         self.channel.get_new_items(fromdate)
     }
 
-    pub fn get_new_items_from_last<'a>(&'a self) -> Vec<&'a Item> {
+    pub fn get_new_items_from_last(&self) -> Vec<&Item> {
         if let Some(guid) = self.last_pushed_guid.as_ref() {
             self.channel.get_new_items_from_last(guid)
         } else {
@@ -187,7 +187,7 @@ impl PubmedFeed {
             if item.guid().is_some() {
                 let guid = ChannelWrapper::parse_guid(item).ok();
                 self.last_pushed_guid = guid;
-                return guid.clone();
+                return guid;
             }
         }
         log::debug!("Could not find a guid in feed {}", &self.name);
@@ -248,7 +248,7 @@ impl UserRssList {
         }
     }
 
-    pub fn filter_item<'a>(&self, item: &'a Item) -> bool {
+    pub fn filter_item(&self, item: &Item) -> bool {
         item_contains_keyword(item, &self.whitelist)
             && !item_contains_keyword(item, &self.blacklist)
     }
@@ -294,6 +294,12 @@ impl From<BTreeMap<u32, PubmedFeed>> for ChannelLookupTable {
     }
 }
 
+impl Default for ChannelLookupTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChannelLookupTable {
     pub fn new() -> ChannelLookupTable {
         ChannelLookupTable(BTreeMap::new())
@@ -309,7 +315,7 @@ impl ChannelLookupTable {
                 Err("Some items do not have a uid! Add them manually with ChannelLookupTable::add.")
             }
         }).collect::<Result<BTreeMap<u32, PubmedFeed>, &str>>();
-        return Ok(ChannelLookupTable(tree?));
+        Ok(ChannelLookupTable(tree?))
     }
 
     pub fn format(&self) -> String {
@@ -317,12 +323,12 @@ impl ChannelLookupTable {
         for (key, pmf) in self.iter() {
             s.push_str(format!("{}:\n  id: {}\n  link: {}\n", pmf.name, key, pmf.link).as_str())
         }
-        s.push_str("]");
+        s.push(']');
         s
     }
     // TODO from implementeren (van btreemap)
     pub fn add(&mut self, feed: PubmedFeed) -> u32 {
-        match feed.uid.clone() {
+        match feed.uid {
             Some(uid) => {
                 self.insert(uid, feed);
                 uid
@@ -337,7 +343,7 @@ impl ChannelLookupTable {
     }
     fn get_unused_key(&self) -> u32 {
         //TODO
-        return 42;
+        42
     }
     // TODO result nog
     pub async fn update_all(&mut self) -> Vec<Result<&PubmedFeed, Box<dyn Error + Sync + Send>>> {

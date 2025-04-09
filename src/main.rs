@@ -36,7 +36,7 @@ async fn main() {
             process::exit(1);
         });
 
-    log::set_max_level(config.log_level.clone());
+    log::set_max_level(config.log_level);
     let stdout = ConsoleAppender::builder().build();
     let filelogs = FileAppender::builder().build(&config.log_path).unwrap();
     let log_config = log4rs::Config::builder()
@@ -117,7 +117,7 @@ async fn main() {
             .branch(dptree::endpoint(|bot: Bot, msg: Message| async move {
                 bot.send_message(
                     msg.chat.id,
-                    format!("Invalid command. Send /help for a list of valid commands."),
+                    "Invalid command. Send /help for a list of valid commands.".to_string(),
                 )
                 .await?;
                 Ok(())
@@ -132,7 +132,7 @@ async fn main() {
         let bot = Bot::new(config.bot_token.as_ref().unwrap());
         let state = Arc::clone(&arcconn);
         // let admin = Arc::new(config.admin.clone());
-        let admin = config.admin.clone();
+        let admin = config.admin;
         tokio::task::spawn(async move {
             // Dispatcher::builder(bot, Update::filter_message().endpoint(user_message_handler))
             Dispatcher::builder(bot, handler)
@@ -152,12 +152,12 @@ async fn main() {
             let time_till = sched.time_till_next_job().await;
             match time_till {
                 Ok(Some(ts)) => {
-                    println!("Next time for job is {:?}", ts);
+                    log::info!("Next time for job is {:?}", ts);
                     tokio::time::sleep(ts).await
                 }
                 _ => {
-                    println!("Could not get next tick for job");
-                    tokio::time::sleep(Duration::from_secs(100)).await
+                    log::warn!("Could not get next tick for job, sleeping for 600 seconds...");
+                    tokio::time::sleep(Duration::from_secs(600)).await
                 }
             }
         }
@@ -193,10 +193,10 @@ where
                         rt.block_on(async {
                             db::sqlite::update_channels(conn)
                                 .await
-                                .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))?;
+                                .map_err(tokio_rusqlite::Error::Rusqlite)?;
                             send_new_users(conn, &sender)
                                 .await
-                                .map_err(|e| tokio_rusqlite::Error::Rusqlite(e))
+                                .map_err(tokio_rusqlite::Error::Rusqlite)
                         })
                     })
                     .await
@@ -228,7 +228,7 @@ async fn send_new_users<S: Sender>(
     let mut result = Vec::new();
     for user in users.iter() {
         result.push(send_new_user(conn, sender, user, &new_items).await);
-        let _ = db::sqlite::update_user(conn, &user);
+        let _ = db::sqlite::update_user(conn, user);
     }
 
     for feed in feeds.iter_mut() {
@@ -253,8 +253,7 @@ async fn send_new_user<S: Sender>(
             if let Some(items) = new_items.get(feed_id) {
                 // Make new vec with references to the items
                 let filtered: Vec<&Item> = items
-                    .iter()
-                    .map(|item| *item)
+                    .iter().copied()
                     .filter(|item| collection.filter_item(item))
                     .collect();
                 sender.send_items(user, &filtered).await;
@@ -284,7 +283,7 @@ async fn interactive_bot(conn: &rusqlite::Connection) {
         std::io::stdin()
             .read_line(&mut line)
             .expect("Did not enter a correct string");
-        let _ = console_message_handler(chat_id, &line.trim(), &conn).await;
+        let _ = console_message_handler(chat_id, line.trim(), conn).await;
         // let _ = console_message_handler(chat_id, &line.trim(), Arc::clone(&userdata), Arc::clone(&feeddata)).await;
         line.clear();
     }

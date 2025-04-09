@@ -9,6 +9,12 @@ use std::str::FromStr;
 #[derive(Debug, PartialEq, Clone)]
 pub struct ChannelWrapper(Channel);
 
+impl Default for ChannelWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChannelWrapper {
     pub fn new() -> ChannelWrapper {
         ChannelWrapper(Channel::default())
@@ -17,25 +23,25 @@ impl ChannelWrapper {
         ChannelWrapper(channel)
     }
     pub fn to_json(&self) -> serde_json::Result<String> {
-        return serde_json::to_string(&self);
+        serde_json::to_string(&self)
     }
     pub fn from_json(json: &String) -> serde_json::Result<ChannelWrapper> {
-        return serde_json::from_str(json);
+        serde_json::from_str(json)
     }
     pub fn replace(&mut self, channel: Channel) {
         self.0 = channel;
     }
     pub fn get_new_items<'a>(&'a self, fromdate: &String) -> Result<Vec<&'a Item>, ParseError> {
-        let prev: DateTime<FixedOffset> = DateTime::parse_from_rfc2822(&fromdate)?;
+        let prev: DateTime<FixedOffset> = DateTime::parse_from_rfc2822(fromdate)?;
         let mut new_items: Vec<&Item> = Vec::new();
         for item in self.items() {
             if let Some(pub_date) = item.pub_date() {
-                if DateTime::parse_from_rfc2822(&pub_date).unwrap() > prev {
+                if DateTime::parse_from_rfc2822(pub_date).unwrap() > prev {
                     new_items.push(item);
                 }
             }
         }
-        return Ok(new_items);
+        Ok(new_items)
     }
     pub fn get_new_items_from_last<'a>(&'a self, guid: &u32) -> Vec<&'a Item> {
         let mut new_items: Vec<&Item> = Vec::new();
@@ -45,7 +51,7 @@ impl ChannelWrapper {
             }
             new_items.push(item);
         }
-        return new_items;
+        new_items
     }
 
     pub fn parse_guid(item: &Item) -> Result<u32, <u32 as FromStr>::Err> {

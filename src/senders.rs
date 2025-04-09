@@ -23,6 +23,12 @@ pub trait Sender {
 #[derive(Copy, Clone, Debug)]
 pub struct ConsoleSender;
 
+impl Default for ConsoleSender {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConsoleSender {
     pub fn new() -> ConsoleSender {
         ConsoleSender {}

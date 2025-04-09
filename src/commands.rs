@@ -304,11 +304,9 @@ fn show_collection(
 ) -> CustomResult<String> {
     if let Some(collection) = user.rss_lists.get(collection_index) {
         db::sqlite::format_collection(conn, collection)
-    } else if user.rss_lists.len() == 0 {
+    } else if user.rss_lists.is_empty() {
         new_collection(conn, user)?;
-        Ok(format!(
-            "Collection with index 0 did not exist; created a new empty collection with the default blacklist"
-        ))
+        Ok("Collection with index 0 did not exist; created a new empty collection with the default blacklist".to_string())
     } else {
         Ok(format!(
             "The index is out of range: pick a number between 0 and {}",
@@ -348,7 +346,7 @@ fn show_presets() -> CustomResult<String> {
 }
 
 fn show_preset_content(conn: &Connection, preset_str: &str) -> CustomResult<String> {
-    match preset::parse_preset(&preset_str) {
+    match preset::parse_preset(preset_str) {
         Some(preset) => match preset {
             Preset::Journal(p) => Ok(format!(
                 "Content of the preset \"{}\":\n{}",
@@ -361,7 +359,7 @@ fn show_preset_content(conn: &Connection, preset_str: &str) -> CustomResult<Stri
                 preset::get_preset_keywords(p)
             )),
         },
-        None => return Ok(format!("'{}' is not a valid preset!", preset_str)),
+        None => Ok(format!("'{}' is not a valid preset!", preset_str)),
     }
 }
 
@@ -409,7 +407,7 @@ fn _set_last_update(conn: &Connection, user: &mut User, date: String) -> CustomR
         .and_utc();
     user.last_pushed = newdate.to_rfc2822();
     db::sqlite::update_user(conn, user)?;
-    return Ok(format!("Changed the last updated time to {}", newdate));
+    Ok(format!("Changed the last updated time to {}", newdate))
 }
 
 fn _get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<String> {
@@ -430,7 +428,7 @@ fn _get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<
             );
         }
     }
-    Ok(format!("Output to sdt..."))
+    Ok("Output to sdt...".to_string())
 }
 
 #[derive(BotCommands, Clone)]
@@ -469,9 +467,9 @@ fn as_user_parser(s: String) -> Result<(i64, String), ParseError> {
             let id = s[0..first_space]
                 .parse::<i64>()
                 .map_err(|e| ParseError::IncorrectFormat(e.into()))?;
-            return Ok((id, s[first_space+1..].to_string()))
+            Ok((id, s[first_space+1..].to_string()))
         },
-        None => Err(ParseError::Custom(format!("Wrong command. Provide a UserId and a command, divided with spaces.").into()))
+        None => Err(ParseError::Custom("Wrong command. Provide a UserId and a command, divided with spaces.".to_string().into()))
     }
 }
 

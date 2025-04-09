@@ -24,13 +24,12 @@ impl Default for Config {
         Config {
             debugmode: false,
             interactive: false,
-            config_path: PathBuf::from(expanduser("~/.config/rssnotify/config.toml").unwrap()),
-            db_path: PathBuf::from(expanduser("~/.config/rssnotify/database.db3").unwrap()),
-            log_path: PathBuf::from(expanduser("~/.config/rssnotify/rssnotify.log").unwrap()),
+            config_path: expanduser("~/.config/rssnotify/config.toml").unwrap(),
+            db_path: expanduser("~/.config/rssnotify/database.db3").unwrap(),
+            log_path: expanduser("~/.config/rssnotify/rssnotify.log").unwrap(),
             bot_token: None,
             persistent: true,
             update_time: parse_update_time("9-17").unwrap(),
-            // update_time: parse_update_time("9-17").unwrap(),
             log_level: log::LevelFilter::Info,
             admin: None,
         }
@@ -56,16 +55,16 @@ impl Config {
 
     #[cfg(debug_assertions)]
     fn set_paths_debug_mode(&mut self) {
-        self.log_path = PathBuf::from(expanduser("target/debug/rssnotify.log").unwrap());
-        self.config_path = PathBuf::from(expanduser("rssnotify.toml").unwrap());
-        self.db_path = PathBuf::from(expanduser("target/debug/database.db3").unwrap());
+        self.log_path = expanduser("target/debug/rssnotify.log").unwrap();
+        self.config_path = expanduser("rssnotify.toml").unwrap();
+        self.db_path = expanduser("target/debug/database.db3").unwrap();
     }
 
     // TODO
     pub fn build_from_toml_and_args(args: &[String]) -> Result<Config, Box<dyn Error>> {
         let mut config = Config::build(args)?;
         if config.config_path.is_file() {
-            config.apply_toml(&config.config_path.clone().as_path())?;
+            config.apply_toml(config.config_path.clone().as_path())?;
             config.apply_args(args)?; // Overwrite with arguments
         }
         Ok(config)
@@ -95,11 +94,11 @@ impl Config {
                 },
                 "db_path" => {
                     if let Some(db_path) = table["db_path"].as_str() {
-                        self.db_path = PathBuf::from(expanduser(db_path)?)
+                        self.db_path = (expanduser(db_path)?)
                     }
                 }
                 "log_path" => match table["log_path"].as_str() {
-                    Some(s) => self.log_path = PathBuf::from(expanduser(s)?),
+                    Some(s) => self.log_path = (expanduser(s)?),
                     None => {
                         return Err("Invalid value provided to log_path in the config file!".into());
                     }
@@ -128,11 +127,11 @@ impl Config {
                     None => return Err("No timestamps provided after -u!".into()),
                 },
                 "-f" => match it.next() {
-                    Some(f) => self.config_path = PathBuf::from(expanduser(f)?),
+                    Some(f) => self.config_path = (expanduser(f)?),
                     None => return Err("No config file name provided after -f!".into()),
                 },
                 "-p" | "--db-path" => match it.next() {
-                    Some(f) => self.db_path = PathBuf::from(expanduser(f)?),
+                    Some(f) => self.db_path = (expanduser(f)?),
                     None => return Err("No db path provided after -p / --db-path!".into()),
                 },
                 "-t" | "--token" => match it.next() {
@@ -149,7 +148,7 @@ impl Config {
         Ok(())
     }
 
-    pub fn log_structs(&self) -> () {
+    pub fn log_structs(&self) {
         log::info!(
             "bot_token: {}",
             self.bot_token.as_ref().unwrap_or(&"".to_string())
@@ -214,27 +213,6 @@ fn _parse_update_time(input: &str) -> Result<Vec<NaiveTime>, Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // #[test]
-    // fn _test_time_constructor() {
-    //     let t = parse_update_time("5,8-11,16-18").unwrap();
-    //     assert_eq!(
-    //         t,
-    //         vec![
-    //             NaiveTime::from_hms_milli_opt(5, 0, 0, 0).unwrap(),
-    //             NaiveTime::from_hms_milli_opt(8, 0, 0, 0).unwrap(),
-    //             NaiveTime::from_hms_milli_opt(9, 0, 0, 0).unwrap(),
-    //             NaiveTime::from_hms_milli_opt(10, 0, 0, 0).unwrap(),
-    //             NaiveTime::from_hms_milli_opt(11, 0, 0, 0).unwrap(),
-    //             NaiveTime::from_hms_milli_opt(16, 0, 0, 0).unwrap(),
-    //             NaiveTime::from_hms_milli_opt(17, 0, 0, 0).unwrap(),
-    //             NaiveTime::from_hms_milli_opt(18, 0, 0, 0).unwrap(),
-    //         ]
-    //     );
-    //     assert!(parse_update_time("9-17").is_ok());
-    //     assert!(parse_update_time("25").is_err());
-    //     assert!(parse_update_time("19-17").is_err());
-    // }
 
     #[test]
     fn test_config() {

@@ -4,7 +4,6 @@ use commands::admin_command_handler;
 use commands::user_command_handler;
 use senders::TelegramSender;
 use serde::Serialize;
-use serde_json;
 use std::fs;
 use std::io;
 use std::sync::Arc;
@@ -33,12 +32,12 @@ where
 
 pub fn load_feedlist(path: &str) -> Result<Vec<PubmedFeed>, io::Error> {
     let data: String = fs::read_to_string(path)?;
-    serde_json::from_str(&data).map_err(|e| io::Error::other(e))
+    serde_json::from_str(&data).map_err(io::Error::other)
 }
 
 pub fn load_userlist(path: &str) -> Result<Vec<User>, io::Error> {
     let data: String = fs::read_to_string(path)?;
-    serde_json::from_str(&data).map_err(|e| io::Error::other(e))
+    serde_json::from_str(&data).map_err(io::Error::other)
 }
 
 type CustomResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -55,7 +54,7 @@ pub async fn admin_message_handler(
             rt.block_on(async {
                 admin_command_handler(&text, conn)
                     .await
-                    .map_err(|e| tokio_rusqlite::Error::Other(e))
+                    .map_err(tokio_rusqlite::Error::Other)
             })
         })
         .await
@@ -78,7 +77,7 @@ pub async fn user_message_handler(
     msg: Message,
     conn: Arc<tokio_rusqlite::Connection>,
 ) -> ResponseResult<()> {
-    let chat_id = msg.clone().chat.id.0.clone();
+    let chat_id = msg.clone().chat.id.0;
     let text = String::from(msg.text().unwrap_or(""));
 
     let answerstring = conn
@@ -87,14 +86,14 @@ pub async fn user_message_handler(
             if ur.is_none() {
                 log::info!("User {} not found, adding", chat_id);
                 ur = Some(User::new(chat_id));
-                db::sqlite::add_user(&conn, &ur.clone().unwrap())?;
+                db::sqlite::add_user(conn, &ur.clone().unwrap())?;
             }
 
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 user_command_handler(&text, &mut ur.unwrap(), conn)
                     .await
-                    .map_err(|e| tokio_rusqlite::Error::Other(e))
+                    .map_err(tokio_rusqlite::Error::Other)
             })
         })
         .await
@@ -121,7 +120,7 @@ pub async fn console_message_handler(
     if ur.is_none() {
         println!("User not found, adding");
         ur = Some(User::new(chat_id));
-        db::sqlite::add_user(conn, &ur.as_ref().unwrap())?;
+        db::sqlite::add_user(conn, ur.as_ref().unwrap())?;
     }
     match user_command_handler(text, &mut ur.unwrap(), conn).await {
         Ok(response) => println!("{}", response),
@@ -278,7 +277,7 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
             "NEJM",
         ),
     ];
-    return feeds.into_iter().map(|x| x.unwrap()).collect();
+    feeds.into_iter().map(|x| x.unwrap()).collect()
 }
 
 #[cfg(test)]

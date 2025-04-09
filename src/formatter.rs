@@ -73,14 +73,14 @@ impl PreppedMessage {
                 "https://doi.org/",
                 doi,
             ));
-            result.push_str("\n");
+            result.push('\n');
             if let Some(journal) = &self.journal {
                 result.push_str(&markdown::italic(&markdown::escape(journal)));
             }
             if let Some(content) = &self.content {
                 result.push_str("\n\n");
                 result.push_str(&PreppedMessage::format_abstract(
-                    &content,
+                    content,
                     ParseMode::MarkdownV2,
                 ));
             }
@@ -97,7 +97,7 @@ impl PreppedMessage {
                     &PreppedMessage::format_link_markdownv2("QxMD", "https://qxmd.com/r/", pmid)
                 ));
             }
-            result.push_str("\n");
+            result.push('\n');
             result.push_str(&footer);
             log::debug!("{}", result);
             result
@@ -108,7 +108,7 @@ impl PreppedMessage {
             }
             if let Some(content) = &self.content {
                 result.push_str("\n\n");
-                result.push_str(&markdown::escape(&content));
+                result.push_str(&markdown::escape(content));
             }
             log::info!("{}", result);
             result
@@ -196,7 +196,7 @@ pub fn format_item_content(item: &Item) -> String {
             pmid.unwrap()
         );
     }
-    return format!("{title}\n{content}");
+    format!("{title}\n{content}")
 }
 
 #[cfg(test)]
