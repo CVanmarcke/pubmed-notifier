@@ -129,11 +129,18 @@ impl PreppedMessage {
             content = content.replace(r"&lt;", r"\<");
             content = content.replace(r"&gt;", r"\>");
 
-            // TODO TESTEN
             let boldre = Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap();
             content = boldre
                 .replace_all(&content, |caps: &Captures| -> String {
                     markdown::bold(&caps[1])
+                })
+                .to_string();
+
+            // For the journal "Radiology"
+            let boldkeywordsre = Regex::new(r"\. (Background|Purpose|Materials and Methods|Results|Conclusion)( [A-Z])").unwrap();
+            content = boldkeywordsre
+                .replace_all(&content, |caps: &Captures| -> String {
+                    format!(".\n\n{}:{}", markdown::bold(&caps[1].to_uppercase()), &caps[2])
                 })
                 .to_string();
 
@@ -199,11 +206,10 @@ mod tests {
     use crate::channelwrapper::ChannelWrapper;
 
     use super::*;
-    // use rssnotify::db::sqlite::*;
 
     #[test]
     fn test_format() {
-        let mut file = File::open("test/samplechannel.xml").unwrap();
+        let mut file = File::open("test/channel_abdominal_radiology.json").unwrap();
         let mut json = String::new();
         file.read_to_string(&mut json).unwrap();
         let channel = ChannelWrapper::from_json(&json).unwrap();
@@ -222,6 +228,28 @@ _Abdominal radiology \(New York\)_
 *CONCLUSION:* The proposed deep learning models showed promise as reliable methods for automating the detection and segmentation of the uterine fibroids, particularly those of clinical relevance\.
 [Link](https://doi\.org/10\.1007/s00261\-025\-04934\-8) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40188260) \| [QxMD](https://qxmd\.com/r/40188260)";
 
+        assert_eq!(message, result);
+
+        let mut file = File::open("test/channel_radiology.json").unwrap();
+        let mut json = String::new();
+        file.read_to_string(&mut json).unwrap();
+        let channel = ChannelWrapper::from_json(&json).unwrap();
+
+        let item = &channel.items[7];
+        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        let result = r"[Predicting Regional Lymph Node Metastases at CT in Microsatellite Instability\-High Colon Cancer](https://doi\.org/10\.1148/radiol\.242122)
+_Radiology_
+
+Background Early identification of lymph node metastasis is crucial for microsatellite instability\-high \(MSI\-H\) colon cancer caused by deficient mismatch repair, but accuracy of CT is poor\.
+
+*PURPOSE*: To determine whether CT\-detected lymph node distribution patterns can improve lymph node evaluation in MSI\-H colon cancer\.
+
+*MATERIALS AND METHODS*: This two\-center retrospective study included patients with MSI\-H colon cancer who underwent pretreatment CT and radical surgery \(development set, December 2017\-December 2022; test set, January 2016\-January 2024\)\. Lymph node characteristics associated with pathologic lymph node metastasis \(pN\+\), including clinical lymph node stage \(cN\) and distribution patterns \(vascular distribution, jammed cluster, and partial fusion\), were selected \(logistic regression and Kendall tau\-b correlation\) to create a distribution\-based clinical lymph node stage \(dcN\) in the development set\. Diagnostic performance was verified in the test set\. Interobserver agreement was assessed by using Fleiss κ\. Clinical value of dcN was assessed using univariable logistic analysis among patients in the treatment set receiving neoadjuvant immunotherapy \(August 2017\-February 2024\)\.
+
+*RESULTS*: The study included 368 patients \(median age, 60 years \[IQR, 50\-70 years\]; 211 male\): 230 from the development set \(median age, 59 years \[IQR, 49\-70 years\]\), 86 from the test set \(median age, 66 years \[IQR, 55\-79 years\]\), and 52 from the treatment set \(median age, 54 years \[IQR, 42\-65 years\]\)\. Only jammed cluster and partial fusion were associated with higher odds of pN\+ \(odds ratio, 78\.9 and 21\.5, respectively; both\*P\*\< \.001\)\. dcN outperformed cN in the test set \(accuracy, 90% \[78 of 87\] vs 46% \[40 of 87\];\*P\*\< \.001; specificity, 97% \[55 of 57\] vs 26% \[15 of 57\];\*P\*\< \.001\)\. Interobserver agreement was moderate for dcN \(κ \= 0\.67\) and poor for cN \(κ \= 0\.48\)\. dcN was associated with a complete response after neoadjuvant immunotherapy \(odds ratio, 0\.05;\*P\*\< \.001\)\. Conclusion dcN showed high performance for identifying regional lymph node metastases and helped predict complete response after neoadjuvant immunotherapy in MSI\-H colon cancer using a surgical reference standard\. ©RSNA, 2025\*Supplemental material is available for this article\.\*See also the editorial by Lev\-Cohain and Sosna in this issue\.
+[Link](https://doi\.org/10\.1148/radiol\.242122) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40197093) \| [QxMD](https://qxmd\.com/r/40197093)";
+
         assert_eq!(message, result)
+
     }
 }
