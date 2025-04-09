@@ -94,11 +94,11 @@ impl Config {
                 },
                 "db_path" => {
                     if let Some(db_path) = table["db_path"].as_str() {
-                        self.db_path = (expanduser(db_path)?)
+                        self.db_path = expanduser(db_path)?
                     }
                 }
                 "log_path" => match table["log_path"].as_str() {
-                    Some(s) => self.log_path = (expanduser(s)?),
+                    Some(s) => self.log_path = expanduser(s)?,
                     None => {
                         return Err("Invalid value provided to log_path in the config file!".into());
                     }
@@ -127,11 +127,11 @@ impl Config {
                     None => return Err("No timestamps provided after -u!".into()),
                 },
                 "-f" => match it.next() {
-                    Some(f) => self.config_path = (expanduser(f)?),
+                    Some(f) => self.config_path = expanduser(f)?,
                     None => return Err("No config file name provided after -f!".into()),
                 },
                 "-p" | "--db-path" => match it.next() {
-                    Some(f) => self.db_path = (expanduser(f)?),
+                    Some(f) => self.db_path = expanduser(f)?,
                     None => return Err("No db path provided after -p / --db-path!".into()),
                 },
                 "-t" | "--token" => match it.next() {
