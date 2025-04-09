@@ -3,6 +3,8 @@ This is a program written to extract articles based on a PubMed RSS feed, filter
 
 A key feature is that it is configurable by the users by issuing commands to the Telegram bot. Multiple collections of RSS feeds are possible per user, and every collection can have different keywords in their blacklist and whitelist.
 
+This was mainly a personal project to learn rust. It is far from a well written program.
+
 * Installation and setup
 ** Installation
 1. Clone the git repo.
@@ -26,7 +28,8 @@ A key feature is that it is configurable by the users by issuing commands to the
 | -l / --log-level [level]    | Default =info=. Can be =off=, =error=, =warn=, =info=, =debug=                                         |
 
 ** Config file
-Example configuration below. Put it in ~~/.config/rssnotify/config.toml~. 
+Example configuration below. Put it in ~~/.config/rssnotify/config.toml~ .
+
 #+begin_src toml config.toml
   [config]
   bot_token = "YOUR BOT TOKEN"
@@ -46,22 +49,23 @@ Available settings:
 - Send /help to the telegram bot to view a list of commands.
 
 
-| *Command*                | *Explenation*                                                                                                                                                           |
-| /help                  | Display this text.                                                                                                                                                      |
-| /feeds                 | List the available feeds.                                                                                                                                               |
-| /collections           | List how many collections you have.                                                                                                                                     |
-| /collection            | [collection] - Show the journals and keywords of a collection. Provide the collection number, starting at 0 (eg "/collection 0")                                        |
-| /newcollection         | Create a new, empty collection                                                                                                                                          |
-| /newfeed               | [feed_name] [link] - Add a new pubmed feed. Provide the name of the feed (with any spaces replaced by _) and link.                                                      |
-| /addfeed               | [feed id] [collection] - Add a feed. Provide the id and collection number. Eg. /addfeed 101532453 0 to add Insights in Imaging to your first feed collection.           |
-| /addtowhitelist        | [word] [collection] - Add a keyword to the whitelist. Provide the keyword and collection number. Space can be entered by using _. Eg. /addtowhitelist cervical_cancer 0 |
-| /addtoblacklist        | [word] [collection] - Add a keyword to the blacklist. Space can be entered by using _                                                                                   |
-| /removefeed            | [id] [collection] - Remove a feed from a collection.                                                                                                                    |
-| /removefromblacklist   | [word] [collection] - Remove a keyword from the whitelist.                                                                                                              |
-| /removefromwhitelist   | [word] [collection] - Remove a keyword from the blacklist.                                                                                                              |
-| /presets               | List available presets.                                                                                                                                                 |
-| /preset                | [preset] - Show preset content.                                                                                                                                         |
-| /addpresettocollection | [preset_name] [collection] - Add the content of a preset to a collection.                                                                                               |
+| *Command*                                           | *Explanation*                                                                                                                                       |
+| /help                                             | Display this text.                                                                                                                                |
+| /feeds                                            | List the available feeds.                                                                                                                         |
+| /collections                                      | List how many collections you have.                                                                                                               |
+| /collection [collection_id]                       | Show the journals and keywords of a collection. Provide the collection number, starting at 0 (eg "/collection 0")                                 |
+| /newcollection                                    | Create a new, empty collection                                                                                                                    |
+| /newfeed [feed_name] [link]                       | Add a new pubmed feed. Provide the name of the feed (with any spaces replaced by _) and link.                                                     |
+| /addfeed [feed id] [collection]                   | Add a feed. Provide the id and collection number. Eg. /addfeed 101532453 0 to add Insights in Imaging to your first feed collection.              |
+| /addtowhitelist [word] [collection]               | Add a keyword to the whitelist. Provide the keyword and collection number. Space can be entered by using _. Eg. /addtowhitelist cervical_cancer 0 |
+| /addtoblacklist [word] [collection]               | Add a keyword to the blacklist. Space can be entered by using _                                                                                   |
+| /removefeed [id] [collection]                     | Remove a feed from a collection.                                                                                                                  |
+| /removefromblacklist [word] [collection]          | Remove a keyword from the whitelist.                                                                                                              |
+| /removefromwhitelist [word] [collection]          | Remove a keyword from the blacklist.                                                                                                              |
+| /presets                                          | List available presets.                                                                                                                           |
+| /preset [preset]                                  | Show preset content.                                                                                                                              |
+| /addpresettocollection [preset_name] [collection] | Add the content of a preset to a collection.                                                                                                      |
+|                                                   |                                                                                                                                                   |
 
 * Admin commands
 
