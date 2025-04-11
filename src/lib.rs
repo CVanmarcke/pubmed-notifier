@@ -6,6 +6,8 @@ use senders::TelegramSender;
 use serde::Serialize;
 use std::fs;
 use std::io;
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use teloxide::RequestError;
 use teloxide::prelude::*;
@@ -58,7 +60,7 @@ pub async fn admin_message_handler(
             })
         })
         .await
-        .map_err(|e| RequestError::Io(std::io::Error::other(format!("{e:?}"))))?;
+        .map_err(|e| RequestError::Io(Arc::new(std::io::Error::other(e))))?;
 
     if answerstring.len() > 4000 {
         let document = InputFile::memory(answerstring).file_name("reply.txt");
@@ -97,7 +99,7 @@ pub async fn user_message_handler(
             })
         })
         .await
-        .map_err(|e| RequestError::Io(std::io::Error::other(format!("{e:?}"))))?;
+        .map_err(|e| RequestError::Io(Arc::new(std::io::Error::other(e))))?;
 
     if answerstring.len() > 4000 {
         let document = InputFile::memory(answerstring).file_name("reply.txt");
@@ -129,23 +131,18 @@ pub async fn console_message_handler(
     Ok(())
 }
 
-// https://docs.rs/teloxide/latest/teloxide/dispatching/type.UpdateHandler.html
-// https://docs.rs/dptree/0.3.0/dptree/index.html
-// fn handler_tree() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
-//     // A simple handler. But you need to make it into a separate thing!
-//     // dptree::entry().branch(Update::filter_message().endpoint(hello_world))
-//     dptree::entry().branch(Update::filter_message().endpoint(bot_message_handler))
-//         //TEST
-// }
+pub async fn make_db(path: &PathBuf) -> Result<rusqlite::Connection, rusqlite::Error> {
+    log::info!("Creating new database at {}", path.display());
+    fs::create_dir_all(path.parent().unwrap_or(Path::new(""))).unwrap();
+    let conn = db::sqlite::new(path.to_str().unwrap()).unwrap();
+    let r = db::sqlite::update_channels(&conn).await;
+    if r.is_err() {
+        log::error!("Error when updating the channel!\n{:?}", r.err().unwrap())
+    }
+    Ok(conn)
+}
 
-// pub async fn command_bot(bot: Bot, userdata: Arc<Mutex<Vec<User>>>, feeddata: Arc<Mutex<ChannelLookupTable>>) -> () {  // A regular bot dispatch
-//     Dispatcher::builder(bot, handler_tree())
-//         .enable_ctrlc_handler()
-//         .build()
-//         .dispatch()
-//         .await;
-// }
-
+// TODO: add this to de database initialization or something
 pub fn make_feedlist() -> Vec<PubmedFeed> {
     let feeds = vec![
         PubmedFeed::build_from_link(
@@ -305,7 +302,7 @@ mod tests {
         let user = User::build(1234i64, "31 sept 2024".to_string(), vec![uro_rss_list]);
         let user2 = User::build(12344i64, "31 sept 2024".to_string(), vec![abdomen_rss_list]);
         let userlist = vec![user, user2];
-        write_data(&userlist, &path).expect("Error writing data");
+        write_data(&userlist, path).expect("Error writing data");
     }
 
     #[test]
@@ -341,7 +338,7 @@ mod tests {
             let mut items = Vec::new();
             for item in pmfeed.channel.items() {
                 if let Some(pub_date) = item.pub_date() {
-                    if DateTime::parse_from_rfc2822(&pub_date).unwrap() > last_pushed {
+                    if DateTime::parse_from_rfc2822(pub_date).unwrap() > last_pushed {
                         items.push(item);
                     }
                 }

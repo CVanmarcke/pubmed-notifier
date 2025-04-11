@@ -8,13 +8,12 @@ use rssnotify::config::Config;
 use rssnotify::datastructs::User;
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
-use rssnotify::{admin_message_handler, console_message_handler, db, user_message_handler};
+use rssnotify::{admin_message_handler, console_message_handler, db, make_db, user_message_handler};
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::process;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{env, fs};
+use std::env;
 use teloxide::Bot;
 use teloxide::prelude::*;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler, JobSchedulerError};
@@ -53,20 +52,12 @@ async fn main() {
 
     config.log_structs();
 
-    let conn;
-    if config.db_path.is_file() {
-        conn = db::sqlite::open(config.db_path.to_str().unwrap()).unwrap();
-    } else {
-        log::info!("Creating new database at {}", &config.db_path.display());
-        fs::create_dir_all(config.db_path.parent().unwrap_or(Path::new(""))).unwrap();
-        conn = db::sqlite::new(&config.db_path.display().to_string()).unwrap();
-        let r = db::sqlite::update_channels(&conn).await;
-        if r.is_err() {
-            log::error!("Error when updating the channel!\n{:?}", r.err().unwrap())
-        }
-    }
+    let conn = match config.db_path.is_file() {
+        true => db::sqlite::open(config.db_path.to_str().unwrap()).unwrap(),
+        false => make_db(&config.db_path).await.unwrap(),
+    };
 
-    let aconn = Connection::open(config.db_path.to_str().unwrap())
+    let aconn = Connection::open(&config.db_path)
         .await
         .unwrap();
     let arcconn = Arc::new(aconn);

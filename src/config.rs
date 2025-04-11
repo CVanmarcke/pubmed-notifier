@@ -216,27 +216,27 @@ mod tests {
 
     #[test]
     fn test_config() {
-        let result = Config::build(&vec!["".to_string()]).expect("Error!");
-        assert_eq!(result.debugmode, false);
+        let result = Config::build(&["".to_string()]).expect("Error!");
+        assert!(!result.debugmode);
         assert_eq!(result.config_path.to_str(), Some("config.json"));
 
-        let result = Config::build(&vec!["aaa".to_string(), "-f".to_string()]);
+        let result = Config::build(&["aaa".to_string(), "-f".to_string()]);
         assert!(result.is_err());
 
-        let argvec: Vec<String> = (vec!["aaa", "-d", "-f", "newconf.json", "-t", "token"])
+        let argvec: Vec<String> = (["aaa", "-d", "-f", "newconf.json", "-t", "token"])
             .iter()
             .map(|x| x.to_string())
             .collect();
 
         let result = Config::build(&argvec).expect("Error!");
-        assert_eq!(result.debugmode, true);
+        assert!(result.debugmode);
         assert_eq!(result.bot_token, Some("token".to_string()));
     }
 
     #[test]
     fn test_toml_reader() {
         let mut config = Config::default();
-        config.apply_toml(&Path::new("config.toml")).unwrap();
+        config.apply_toml(Path::new("config.toml")).unwrap();
         assert_eq!(config.admin.unwrap(), 6242952853);
         assert_eq!(config.update_time, parse_update_time("9-17").unwrap());
     }

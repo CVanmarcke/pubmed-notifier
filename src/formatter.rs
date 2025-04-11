@@ -69,7 +69,7 @@ impl PreppedMessage {
         let mut footer;
         if let Some(doi) = &self.doi {
             result.push_str(&PreppedMessage::format_link_markdownv2(
-                &self.title,
+                &Self::format_title(&self.title, ParseMode::MarkdownV2),
                 "https://doi.org/",
                 doi,
             ));
@@ -80,7 +80,7 @@ impl PreppedMessage {
             if let Some(content) = &self.content {
                 result.push_str("\n\n");
                 result.push_str(&PreppedMessage::format_abstract(
-                    content,
+                    &markdown::escape(content),
                     ParseMode::MarkdownV2,
                 ));
             }
@@ -122,19 +122,60 @@ impl PreppedMessage {
         }
     }
 
-    fn format_abstract(content: &str, parsemode: ParseMode) -> String {
-        // Formats the abstract (escapes invalid characters, bolds RESULT: etc)
+    fn format_markup(text: &str, parsemode: ParseMode) -> String {
         if parsemode == ParseMode::MarkdownV2 {
-            let mut content = markdown::escape(content);
-            content = content.replace(r"&lt;", r"\<");
-            content = content.replace(r"&gt;", r"\>");
+            // let mut text = markdown::escape(text);
+            let mut text = text.to_string();
+            text = text.replace(r"&lt;", r"\<");
+            text = text.replace(r"&gt;", r"\>");
 
             let boldre = Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap();
-            content = boldre
-                .replace_all(&content, |caps: &Captures| -> String {
+            text = boldre
+                .replace_all(&text, |caps: &Captures| -> String {
                     markdown::bold(&caps[1])
                 })
                 .to_string();
+
+            let italicre = Regex::new(r"(?m)\*(.+?)\*").unwrap();
+            text = italicre
+                .replace_all(&text, |caps: &Captures| -> String {
+                    markdown::italic(&caps[1])
+                })
+                .to_string();
+            text
+        } else {
+            todo!()
+        }
+    }
+
+    fn format_title(title: &str, parsemode: ParseMode) -> String {
+        // Formats the abstract (escapes invalid characters, bolds RESULT: etc)
+        Self::format_markup(title, parsemode)
+    }
+
+
+    fn format_abstract(content: &str, parsemode: ParseMode) -> String {
+        // Formats the abstract (escapes invalid characters, bolds RESULT: etc)
+        if parsemode == ParseMode::MarkdownV2 {
+            let mut content = content.to_string();
+            // let mut content = markdown::escape(content);
+            content = content.replace(r"&lt;", r"\<");
+            content = content.replace(r"&gt;", r"\>");
+
+            content = Self::format_markup(&content, parsemode);
+            // let boldre = Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap();
+            // content = boldre
+            //     .replace_all(&content, |caps: &Captures| -> String {
+            //         markdown::bold(&caps[1])
+            //     })
+            //     .to_string();
+
+            // let italicre = Regex::new(r"(?m)\*(.+?)\*").unwrap();
+            // content = italicre
+            //     .replace_all(&content, |caps: &Captures| -> String {
+            //         markdown::italic(&caps[1])
+            //     })
+            //     .to_string();
 
             // For the journal "Radiology"
             let boldkeywordsre = Regex::new(r"\. (Background|Purpose|Materials and Methods|Results|Conclusion)( [A-Z])").unwrap();
@@ -156,7 +197,7 @@ impl PreppedMessage {
     }
 }
 
-pub fn format_item_content(item: &Item) -> String {
+pub fn _format_item_content(item: &Item) -> String {
     let mut title = html2md::rewrite_html(item.title().unwrap_or(""), false);
     let mut content = html2md::rewrite_html(item.content().unwrap_or(""), false);
     content = content.replace("**", "*");
@@ -223,7 +264,7 @@ _Abdominal radiology \(New York\)_
 
 *METHODS:* Pre\-treatment sagittal and axial T2\-weighted MRI scans acquired from patients diagnosed with uterine fibroids were collected\. The proposed segmentation models were constructed based on the three\-dimensional nnU\-Net framework\. Fibroid detection efficacy was assessed, with subgroup analyses by size and location\. The segmentation performance was evaluated using Dice similarity coefficients \(DSCs\), 95% Hausdorff distance \(HD95\), and average surface distance \(ASD\)\.
 
-*RESULTS:* The internal dataset comprised 299 patients who were divided into the training set \(n \= 239\) and the internal test set \(n \= 60\)\. The external dataset comprised 45 patients\. The sagittal T2WI model and the axial T2WI model demonstrated recalls of 74\.4%/76\.4% and precision of 98\.9%/97\.9% for fibroid detection in the internal test set\. The models achieved recalls of 93\.7%/95\.3% for fibroids ≥4 cm\. The recalls for International Federation of Gynecology and Obstetrics \(FIGO\) type 2\-5, FIGO types 0\\1\\2\(submucous\), fibroids FIGO types 5\\6\\7\(subserous\) were 100%/100%, 73\.3%/78\.6%, and 80\.3%/81\.9%, respectively\. The proposed models demonstrated good performance in segmentation of the uterine fibroids with mean DSCs of 0\.789 and 0\.804, HD95s of 9\.996 and 10\.855 mm, and ASDs of 2\.035 and 2\.115 mm in the internal test set, and with mean DSCs of 0\.834 and 0\.818, HD95s of 9\.971 and 11\.874 mm, and ASDs of 2\.031 and 2\.273 mm in the external test set\.
+*RESULTS:* The internal dataset comprised 299 patients who were divided into the training set \(n \= 239\) and the internal test set \(n \= 60\)\. The external dataset comprised 45 patients\. The sagittal T2WI model and the axial T2WI model demonstrated recalls of 74\.4%/76\.4% and precision of 98\.9%/97\.9% for fibroid detection in the internal test set\. The models achieved recalls of 93\.7%/95\.3% for fibroids ≥4 cm\. The recalls for International Federation of Gynecology and Obstetrics \(FIGO\) type 2\-5, FIGO types 0\\\\1\\\\2\(submucous\), fibroids FIGO types 5\\\\6\\\\7\(subserous\) were 100%/100%, 73\.3%/78\.6%, and 80\.3%/81\.9%, respectively\. The proposed models demonstrated good performance in segmentation of the uterine fibroids with mean DSCs of 0\.789 and 0\.804, HD95s of 9\.996 and 10\.855 mm, and ASDs of 2\.035 and 2\.115 mm in the internal test set, and with mean DSCs of 0\.834 and 0\.818, HD95s of 9\.971 and 11\.874 mm, and ASDs of 2\.031 and 2\.273 mm in the external test set\.
 
 *CONCLUSION:* The proposed deep learning models showed promise as reliable methods for automating the detection and segmentation of the uterine fibroids, particularly those of clinical relevance\.
 [Link](https://doi\.org/10\.1007/s00261\-025\-04934\-8) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40188260) \| [QxMD](https://qxmd\.com/r/40188260)";
@@ -246,7 +287,7 @@ Background Early identification of lymph node metastasis is crucial for microsat
 
 *MATERIALS AND METHODS*: This two\-center retrospective study included patients with MSI\-H colon cancer who underwent pretreatment CT and radical surgery \(development set, December 2017\-December 2022; test set, January 2016\-January 2024\)\. Lymph node characteristics associated with pathologic lymph node metastasis \(pN\+\), including clinical lymph node stage \(cN\) and distribution patterns \(vascular distribution, jammed cluster, and partial fusion\), were selected \(logistic regression and Kendall tau\-b correlation\) to create a distribution\-based clinical lymph node stage \(dcN\) in the development set\. Diagnostic performance was verified in the test set\. Interobserver agreement was assessed by using Fleiss κ\. Clinical value of dcN was assessed using univariable logistic analysis among patients in the treatment set receiving neoadjuvant immunotherapy \(August 2017\-February 2024\)\.
 
-*RESULTS*: The study included 368 patients \(median age, 60 years \[IQR, 50\-70 years\]; 211 male\): 230 from the development set \(median age, 59 years \[IQR, 49\-70 years\]\), 86 from the test set \(median age, 66 years \[IQR, 55\-79 years\]\), and 52 from the treatment set \(median age, 54 years \[IQR, 42\-65 years\]\)\. Only jammed cluster and partial fusion were associated with higher odds of pN\+ \(odds ratio, 78\.9 and 21\.5, respectively; both\*P\*\< \.001\)\. dcN outperformed cN in the test set \(accuracy, 90% \[78 of 87\] vs 46% \[40 of 87\];\*P\*\< \.001; specificity, 97% \[55 of 57\] vs 26% \[15 of 57\];\*P\*\< \.001\)\. Interobserver agreement was moderate for dcN \(κ \= 0\.67\) and poor for cN \(κ \= 0\.48\)\. dcN was associated with a complete response after neoadjuvant immunotherapy \(odds ratio, 0\.05;\*P\*\< \.001\)\. Conclusion dcN showed high performance for identifying regional lymph node metastases and helped predict complete response after neoadjuvant immunotherapy in MSI\-H colon cancer using a surgical reference standard\. ©RSNA, 2025\*Supplemental material is available for this article\.\*See also the editorial by Lev\-Cohain and Sosna in this issue\.
+*RESULTS*: The study included 368 patients \(median age, 60 years \[IQR, 50\-70 years\]; 211 male\): 230 from the development set \(median age, 59 years \[IQR, 49\-70 years\]\), 86 from the test set \(median age, 66 years \[IQR, 55\-79 years\]\), and 52 from the treatment set \(median age, 54 years \[IQR, 42\-65 years\]\)\. Only jammed cluster and partial fusion were associated with higher odds of pN\+ \(odds ratio, 78\.9 and 21\.5, respectively; both\_P\_\< \.001\)\. dcN outperformed cN in the test set \(accuracy, 90% \[78 of 87\] vs 46% \[40 of 87\];\_P\_\< \.001; specificity, 97% \[55 of 57\] vs 26% \[15 of 57\];\_P\_\< \.001\)\. Interobserver agreement was moderate for dcN \(κ \= 0\.67\) and poor for cN \(κ \= 0\.48\)\. dcN was associated with a complete response after neoadjuvant immunotherapy \(odds ratio, 0\.05;\_P\_\< \.001\)\. Conclusion dcN showed high performance for identifying regional lymph node metastases and helped predict complete response after neoadjuvant immunotherapy in MSI\-H colon cancer using a surgical reference standard\. ©RSNA, 2025\_Supplemental material is available for this article\.\_See also the editorial by Lev\-Cohain and Sosna in this issue\.
 [Link](https://doi\.org/10\.1148/radiol\.242122) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40197093) \| [QxMD](https://qxmd\.com/r/40197093)";
 
         assert_eq!(message, result)
