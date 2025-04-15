@@ -144,20 +144,23 @@ impl PubmedFeed {
 
     pub async fn update_channel_limited(&mut self) -> Result<(), Box<dyn Error + Sync + Send>> {
         // Don't update if no subscribers
+        log::debug!("Updating feed {} ", self.name);
         if self.subscribers == 0 {
+            log::debug!("Subscribers is 0, skipping update.");
             return Ok(());
         }
         // Don't update if update < 1 hour ago
         if let Some(last_build_date) = self.channel.last_build_date() {
-            let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date)?.into();
+            let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date).unwrap_or_default().into();
             let diff = Local::now() - prev;
             if diff.num_minutes() < 55 {
+                log::debug!("Last update was < 1 hour: skipping update.");
                 return Ok(());
             }
         }
         let newchannel = self.download_channel().await?;
         self.channel = newchannel;
-        log::trace!("Succesfully updated channel {}", &self.name);
+        log::debug!("Succesfully updated channel {}", &self.name);
         Ok(())
     }
 

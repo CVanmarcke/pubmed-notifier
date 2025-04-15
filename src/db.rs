@@ -314,12 +314,12 @@ pub mod sqlite {
             match r {
                 Ok(i) => acc += i,
                 // TODO
-                _ => (),
+                _ => log::error!("Error updating the database with the updated feed:{:?}", r),
             }
         }
         for r in result {
             if let Err(e) = r {
-                println!("Error in update_channels function:\n{:?}", e)
+                log::error!("Error in update_channel_limited function:\n{:?}", e)
             }
         }
         Ok(acc)
