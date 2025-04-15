@@ -163,7 +163,7 @@ impl PubmedFeed {
         self.uid.replace(newuid) // Returns the old value!
     }
 
-    pub fn get_new_items<'a>(&'a self, fromdate: &String) -> ParseResult<Vec<&'a Item>> {
+    pub fn get_new_items<'a>(&'a self, fromdate: &str) -> ParseResult<Vec<&'a Item>> {
         self.channel.get_new_items(fromdate)
     }
 

@@ -7,7 +7,6 @@ use serde::Serialize;
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 use teloxide::RequestError;
 use teloxide::prelude::*;
@@ -131,7 +130,7 @@ pub async fn console_message_handler(
     Ok(())
 }
 
-pub async fn make_db(path: &PathBuf) -> Result<rusqlite::Connection, rusqlite::Error> {
+pub async fn make_db(path: &Path) -> Result<rusqlite::Connection, rusqlite::Error> {
     log::info!("Creating new database at {}", path.display());
     fs::create_dir_all(path.parent().unwrap_or(Path::new(""))).unwrap();
     let conn = db::sqlite::new(path.to_str().unwrap()).unwrap();

@@ -2,11 +2,11 @@ use chrono::ParseError;
 use chrono::prelude::*;
 use rss::Channel;
 use rss::Item;
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
+use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ChannelWrapper(Channel);
 
 impl Default for ChannelWrapper {
@@ -25,13 +25,13 @@ impl ChannelWrapper {
     pub fn to_json(&self) -> serde_json::Result<String> {
         serde_json::to_string(&self)
     }
-    pub fn from_json(json: &String) -> serde_json::Result<ChannelWrapper> {
+    pub fn from_json(json: &str) -> serde_json::Result<ChannelWrapper> {
         serde_json::from_str(json)
     }
     pub fn replace(&mut self, channel: Channel) {
         self.0 = channel;
     }
-    pub fn get_new_items<'a>(&'a self, fromdate: &String) -> Result<Vec<&'a Item>, ParseError> {
+    pub fn get_new_items<'a>(&'a self, fromdate: &str) -> Result<Vec<&'a Item>, ParseError> {
         let prev: DateTime<FixedOffset> = DateTime::parse_from_rfc2822(fromdate)?;
         let mut new_items: Vec<&Item> = Vec::new();
         for item in self.items() {
@@ -64,28 +64,28 @@ impl ChannelWrapper {
     }
 }
 
-impl Serialize for ChannelWrapper {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_newtype_struct("ChannelWrapper", &self.0.to_string())
-        // serializer.serialize_str(&self.0.to_string()[..])
-    }
-}
+// impl Serialize for ChannelWrapper {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         serializer.serialize_newtype_struct("ChannelWrapper", &self.0.to_string())
+//         // serializer.serialize_str(&self.0.to_string()[..])
+//     }
+// }
 
-// https://stackoverflow.com/questions/46753955/how-to-transform-fields-during-deserialization-using-serde
-impl<'de> Deserialize<'de> for ChannelWrapper {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // let s: &str = Deserialize::deserialize(deserializer)?;
-        let s: String = Deserialize::deserialize(deserializer)?;
-        let channel = Channel::read_from(s.as_bytes()).map_err(D::Error::custom)?;
-        Ok(ChannelWrapper(channel))
-    }
-}
+// // https://stackoverflow.com/questions/46753955/how-to-transform-fields-during-deserialization-using-serde
+// impl<'de> Deserialize<'de> for ChannelWrapper {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         // let s: &str = Deserialize::deserialize(deserializer)?;
+//         let s: String = Deserialize::deserialize(deserializer)?;
+//         let channel = Channel::read_from(s.as_bytes()).map_err(D::Error::custom)?;
+//         Ok(ChannelWrapper(channel))
+//     }
+// }
 
 impl Deref for ChannelWrapper {
     type Target = Channel;
@@ -106,8 +106,4 @@ mod tests {
         let cw2 = serde_json::from_str(&json).unwrap();
         assert_eq!(cw, cw2)
     }
-    // #[test]
-    // fn build_from_json(json: &String) -> serde_json::Result<User> {
-    //     return serde_json::from_str(json);
-    // }
 }

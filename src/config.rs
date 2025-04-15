@@ -1,5 +1,5 @@
 use chrono::NaiveTime;
-use expanduser::expanduser;
+use simple_expand_tilde::*;
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
@@ -24,9 +24,9 @@ impl Default for Config {
         Config {
             debugmode: false,
             interactive: false,
-            config_path: expanduser("~/.config/rssnotify/config.toml").unwrap(),
-            db_path: expanduser("~/.config/rssnotify/database.db3").unwrap(),
-            log_path: expanduser("~/.config/rssnotify/rssnotify.log").unwrap(),
+            config_path: expand_tilde("~/.config/rssnotify/config.toml").unwrap(),
+            db_path: expand_tilde("~/.config/rssnotify/database.db3").unwrap(),
+            log_path: expand_tilde("~/.config/rssnotify/rssnotify.log").unwrap(),
             bot_token: None,
             persistent: true,
             update_time: parse_update_time("9-17").unwrap(),
@@ -55,9 +55,9 @@ impl Config {
 
     #[cfg(debug_assertions)]
     fn set_paths_debug_mode(&mut self) {
-        self.log_path = expanduser("target/debug/rssnotify.log").unwrap();
-        self.config_path = expanduser("rssnotify.toml").unwrap();
-        self.db_path = expanduser("target/debug/database.db3").unwrap();
+        self.log_path = expand_tilde("target/debug/rssnotify.log").unwrap();
+        self.config_path = expand_tilde("rssnotify.toml").unwrap();
+        self.db_path = expand_tilde("target/debug/database.db3").unwrap();
     }
 
     // TODO
@@ -92,13 +92,13 @@ impl Config {
                         );
                     }
                 },
-                "db_path" => {
-                    if let Some(db_path) = table["db_path"].as_str() {
-                        self.db_path = expanduser(db_path)?
-                    }
-                }
+                "db_path" => match table["db_path"].as_str() {
+                    Some(s) => self.db_path = expand_tilde(s).ok_or("There was a problem parsing the path.")?,
+                    None => 
+                        return Err("Invalid value provided to log_path in the config file!".into()),
+                },
                 "log_path" => match table["log_path"].as_str() {
-                    Some(s) => self.log_path = expanduser(s)?,
+                    Some(s) => self.log_path = expand_tilde(s).ok_or("There was a problem parsing the path.")?,
                     None => {
                         return Err("Invalid value provided to log_path in the config file!".into());
                     }
@@ -127,11 +127,13 @@ impl Config {
                     None => return Err("No timestamps provided after -u!".into()),
                 },
                 "-f" => match it.next() {
-                    Some(f) => self.config_path = expanduser(f)?,
+                    Some(f) => self.config_path = expand_tilde(f)
+                        .ok_or("There was a problem parsing the path.")?,
                     None => return Err("No config file name provided after -f!".into()),
                 },
                 "-p" | "--db-path" => match it.next() {
-                    Some(f) => self.db_path = expanduser(f)?,
+                    Some(f) => self.db_path = expand_tilde(f)
+                        .ok_or("There was a problem parsing the path.")?,
                     None => return Err("No db path provided after -p / --db-path!".into()),
                 },
                 "-t" | "--token" => match it.next() {
