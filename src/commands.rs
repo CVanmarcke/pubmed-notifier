@@ -435,9 +435,13 @@ fn _get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<
 #[command(rename_rule = "lowercase", parse_with = "split")]
 pub enum AdminCommand {
     // GetNewSince { date: String }, // in format YYY-mm-dd
+    #[command(description = "Display this text.")]
+    AdminHelp,
+    #[command(description = "Update all the feeds.")]
     Update,
+    #[command(description = "List the users id's in the database.")]
     Users,
-    #[command(parse_with = as_user_parser)]
+    #[command(description = "Execute a command as another user.", parse_with = as_user_parser)]
     AsUser { id: i64, msg: String },
 }
 
@@ -445,13 +449,14 @@ pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> Cu
     let command = AdminCommand::parse(msg, "");
     if command.is_err() {
         return Err(format!(
-            "\"{}\" is not a valid command! Send /help to view the list of valid commands.",
+            "\"{}\" is not a valid command! Send /adminhelp to view the list of valid commands.",
             msg
         )
         .into());
     }
     match command.unwrap() {
         // AdminCommand::GetNewSince {date} => exec_admin(admin, user, || get_new_since(conn, user, date)), // in format YYY-mm-dd
+        AdminCommand::AdminHelp => Ok(AdminCommand::descriptions().to_string()),
         AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
         AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
         AdminCommand::Update => db::sqlite::update_channels(conn)
