@@ -375,7 +375,9 @@ fn add_preset_to_collection(
         match preset::parse_preset(&preset) {
             Some(preset) => match preset {
                 Preset::Journal(p) => {
-                    collection.feeds = preset::merge_journal_preset_with_set(p, &collection.feeds)
+                    collection.feeds = preset::merge_journal_preset_with_set(p, &collection.feeds);
+                    // TODO: a more elegant solution to update this!
+                    db::sqlite::update_subscribers(conn)?;
                 }
                 Preset::Keyword(p) => match p {
                     Keywords::Uro | Keywords::Abdomen => {

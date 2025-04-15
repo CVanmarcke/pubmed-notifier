@@ -38,7 +38,6 @@ pub mod sqlite {
             "CREATE TABLE IF NOT EXISTS users (
             id           INTEGER PRIMARY KEY,
             last_pushed  TEXT NOT NULL,
-
             collections  TEXT NOT NULL
         )",
             (), // empty list of parameters.
@@ -54,11 +53,7 @@ pub mod sqlite {
         )",
             (), // empty list of parameters.
         )?;
-
-        conn.execute(
-            "PRAGMA pragma_name = (?1)",
-            (DB_VERSION, ),
-        )?;
+        conn.pragma_update(Some(DatabaseName::Main), "user_version", DB_VERSION)?;
 
         for feed in make_feedlist() {
             add_feed(conn, &feed)?;
@@ -98,14 +93,32 @@ pub mod sqlite {
         conn.backup(DatabaseName::Main, format!("{}.bak", &conn.path().unwrap()), None)?;
         log::info!("Backup complete");
         if version == 0 {
-            log::info!("Backup complete");
+            log::info!("Adding subscribers column...");
             conn.execute(
                 "ALTER TABLE feeds
                    ADD subscribers   INTEGER;",
                 (), // empty list of parameters.
             )?;
-            log::info!("Added subscribers column.");
+            log::info!("Updating the subscriber column...");
             update_subscribers(conn)?;
+
+            log::info!("Updating the channel column...");
+            let mut stmt =
+                conn.prepare("SELECT id, name, link, last_pushed_guid, subscribers FROM feeds")?;
+            let feed_iter = stmt.query_map([], |row| {
+                Ok(PubmedFeed {
+                    name: row.get(1)?,
+                    uid: Some(row.get(0)?),
+                    link: row.get(2)?,
+                    channel: ChannelWrapper::new(),
+                    last_pushed_guid: row.get(3)?,
+                    subscribers: row.get(4).unwrap_or(0),
+                })
+            })?;
+            for feed in feed_iter {
+                update_feed(conn, &feed?)?;
+            }
+            log::info!("Update to db version 1 complete.");
         }
 
         log::info!("Done. Updating db_version");
@@ -270,7 +283,7 @@ pub mod sqlite {
                      name = ?2,
                      link = ?3,
                      channel = ?4,
-                     last_pushed_guid = ?5
+                     last_pushed_guid = ?5,
                      subscribers = ?6
                  WHERE id = ?1",
             )?;
