@@ -1,7 +1,12 @@
-pub mod sqlite {
-    use std::collections::HashSet;
 
-    use rusqlite::{Connection, Result, params};
+const DB_VERSION: u32 = 1;
+
+pub mod sqlite {
+    use crate::db::DB_VERSION;
+    use std::collections::{HashMap, HashSet};
+    use std::sync::Arc;
+
+    use rusqlite::{params, Connection, DatabaseName, Result};
     use teloxide::RequestError;
     use tokio_rusqlite;
     // use tokio_rusqlite;
@@ -11,7 +16,9 @@ pub mod sqlite {
     use crate::make_feedlist;
 
     pub fn open(path: &str) -> Result<Connection> {
-        Connection::open(path)
+        let conn = Connection::open(path)?;
+        update_db(&conn)?;
+        Ok(conn)
     }
 
     pub fn new(path: &str) -> Result<Connection, rusqlite::Error> {
@@ -31,20 +38,28 @@ pub mod sqlite {
             "CREATE TABLE IF NOT EXISTS users (
             id           INTEGER PRIMARY KEY,
             last_pushed  TEXT NOT NULL,
+
             collections  TEXT NOT NULL
         )",
             (), // empty list of parameters.
         )?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS feeds (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL,
-            link        TEXT NOT NULL UNIQUE,
-            channel     TEXT NOT NULL,
-            last_pushed_guid   INTEGER
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            name          TEXT NOT NULL,
+            link          TEXT NOT NULL UNIQUE,
+            channel       TEXT NOT NULL,
+            last_pushed_guid   INTEGER,
+            subscribers   INTEGER
         )",
             (), // empty list of parameters.
         )?;
+
+        conn.execute(
+            "PRAGMA pragma_name = (?1)",
+            (DB_VERSION, ),
+        )?;
+
         for feed in make_feedlist() {
             add_feed(conn, &feed)?;
         }
@@ -64,7 +79,73 @@ pub mod sqlite {
             result.map_err(|e| tokio_rusqlite::Error::Other(e.into()))
         })
         .await
-        .map_err(|e| RequestError::Io(std::io::Error::other(e.to_string())))
+            .map_err(|e| RequestError::Io(Arc::new(std::io::Error::other(e))))
+    }
+
+    pub fn update_db(conn: &Connection) -> Result<(), rusqlite::Error> {
+        let mut stmt =
+            conn.prepare("SELECT user_version FROM pragma_user_version;")?;
+        let mut rows = stmt.query([])?;
+        let row_opt = rows.next()?;
+        let version: u32 = match row_opt {
+            Some(row) => row.get(0).unwrap_or(0u32),
+            None => 0u32,
+        };
+        if version == DB_VERSION {
+            return Ok(());
+        }
+        log::info!("DB is out of date ({}, should be {}). Updating.", version, DB_VERSION);
+        conn.backup(DatabaseName::Main, format!("{}.bak", &conn.path().unwrap()), None)?;
+        log::info!("Backup complete");
+        if version == 0 {
+            log::info!("Backup complete");
+            conn.execute(
+                "ALTER TABLE feeds
+                   ADD subscribers   INTEGER;",
+                (), // empty list of parameters.
+            )?;
+            log::info!("Added subscribers column.");
+            update_subscribers(conn)?;
+        }
+
+        log::info!("Done. Updating db_version");
+        conn.pragma_update(Some(DatabaseName::Main), "user_version", DB_VERSION)
+    }
+
+    pub fn add_subscriber(conn: &Connection, feed_uid: u32, by: i32) -> Result<usize, rusqlite::Error> {
+        let statement =
+            format!("UPDATE feeds SET subscribers = subscribers {} (?1) WHERE id=(?2)",
+                match by.is_positive() {
+                    true => "+",
+                    false => "-",
+                });
+        let mut stmt = conn.prepare_cached(&statement)?;
+        stmt.execute(params![by.abs(), feed_uid])
+    }
+
+    pub fn set_subscribers(conn: &Connection, feed_uid: u32, subscribers: u32) -> Result<usize, rusqlite::Error> {
+        let mut stmt = conn.prepare_cached(
+            "UPDATE feeds
+                 SET subscribers = ?1
+                 WHERE id = ?2",
+        )?;
+        stmt.execute(params![subscribers, feed_uid])
+    }
+
+    pub fn update_subscribers(conn: &Connection) -> Result<(), rusqlite::Error> {
+        let users = get_users(conn)?;
+        let mut map: HashMap<u32, u32> = HashMap::new();
+        for user in users {
+            for collection in user.rss_lists {
+                for feed_uid in collection.feeds {
+                    map.entry(feed_uid).and_modify(|n| *n += 1).or_insert(1);
+                }
+            }
+        }
+        for (key, value) in map.into_iter() {
+            set_subscribers(conn, key, value)?;
+        }
+        Ok(())
     }
 
     pub fn add_user(conn: &Connection, user: &User) -> Result<usize, rusqlite::Error> {
@@ -132,8 +213,8 @@ pub mod sqlite {
             .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?;
         if feed.uid.is_some() {
             conn.execute(
-                "INSERT OR IGNORE INTO feeds (id, name, link, channel, last_pushed_guid) VALUES (?1, ?2, ?3, ?4, ?5)",
-                (&feed.uid.unwrap(), &feed.name, &feed.link, &channel, &feed.last_pushed_guid),
+                "INSERT OR IGNORE INTO feeds (id, name, link, channel, last_pushed_guid, subscribers) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                (&feed.uid.unwrap(), &feed.name, &feed.link, &channel, &feed.last_pushed_guid, &feed.subscribers),
             )?;
             Ok(feed.uid.unwrap())
         } else {
@@ -143,8 +224,8 @@ pub mod sqlite {
                 &feed.link
             );
             conn.execute(
-                "INSERT OR IGNORE INTO feeds (name, link, channel, last_pushed_guid) VALUES (?1, ?2, ?3, ?4)",
-                (&feed.name, &feed.link, &channel, &feed.last_pushed_guid),
+                "INSERT OR IGNORE INTO feeds (name, link, channel, last_pushed_guid, subscribers) VALUES (?1, ?2, ?3, ?4, ?5)",
+                (&feed.name, &feed.link, &channel, &feed.last_pushed_guid, &feed.subscribers),
             )?;
 
             let mut stmt = conn.prepare("SELECT id FROM feeds WHERE link=(?1)")?;
@@ -158,14 +239,14 @@ pub mod sqlite {
 
     pub fn update_guid_feeds(
         conn: &Connection,
-        feeds: &Vec<PubmedFeed>,
+        feeds: &[PubmedFeed],
     ) -> Result<(), rusqlite::Error> {
         // Applies everything, but does not interrupt when there is an error
         let result: Result<Vec<()>, rusqlite::Error> = feeds
             .iter()
             .map(|feed| update_guid_feed(conn, feed))
             .collect();
-        result.map(|_| (()))
+        result.map(|_| ())
     }
 
     pub fn update_guid_feed(conn: &Connection, feed: &PubmedFeed) -> Result<(), rusqlite::Error> {
@@ -190,6 +271,7 @@ pub mod sqlite {
                      link = ?3,
                      channel = ?4,
                      last_pushed_guid = ?5
+                     subscribers = ?6
                  WHERE id = ?1",
             )?;
             stmt.execute(params![
@@ -198,6 +280,7 @@ pub mod sqlite {
                 &feed.link,
                 &channel,
                 &feed.last_pushed_guid,
+                &feed.subscribers,
             ])?;
             Ok(feed.uid.unwrap())
         } else {
@@ -213,7 +296,7 @@ pub mod sqlite {
         let mut result = Vec::new();
         let mut acc = 0;
         for feed in feeds.iter_mut() {
-            result.push(feed.update_channel_in_place().await);
+            result.push(feed.update_channel_limited().await);
             let r = update_feed(conn, feed);
             match r {
                 Ok(i) => acc += i,
@@ -231,7 +314,7 @@ pub mod sqlite {
 
     pub fn get_feed(conn: &Connection, id: &u32) -> Result<Option<PubmedFeed>, rusqlite::Error> {
         let mut stmt = conn
-            .prepare("SELECT id, name, link, channel, last_pushed_guid FROM feeds WHERE id=(?1)")?;
+            .prepare("SELECT id, name, link, channel, last_pushed_guid, subscribers FROM feeds WHERE id=(?1)")?;
         let mut rows = stmt.query([id])?;
         let row_opt = rows.next()?;
         if let Some(row) = row_opt {
@@ -245,6 +328,7 @@ pub mod sqlite {
                         .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?
                 },
                 last_pushed_guid: row.get(4)?,
+                subscribers: row.get(5).unwrap_or(0),
             }))
         } else {
             Ok(None)
@@ -253,7 +337,7 @@ pub mod sqlite {
 
     pub fn get_feeds(conn: &Connection) -> Result<Vec<PubmedFeed>, rusqlite::Error> {
         let mut stmt =
-            conn.prepare("SELECT id, name, link, channel, last_pushed_guid FROM feeds")?;
+            conn.prepare("SELECT id, name, link, channel, last_pushed_guid, subscribers FROM feeds")?;
         let feed_iter = stmt.query_map([], |row| {
             Ok(PubmedFeed {
                 name: row.get(1)?,
@@ -265,6 +349,7 @@ pub mod sqlite {
                         .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?
                 },
                 last_pushed_guid: row.get(4)?,
+                subscribers: row.get(5).unwrap_or(0),
             })
         })?;
 

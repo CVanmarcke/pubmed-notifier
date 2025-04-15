@@ -165,6 +165,7 @@ fn add_feed_to_collection(
         if let Some(feed) = db::sqlite::get_feed(conn, &feed_id)? {
             coll.feeds.insert(feed_id);
             db::sqlite::update_user(conn, user)?;
+            db::sqlite::add_subscriber(conn, feed_id, 1)?;
             return Ok(format!(
                 "Added {} ({}) to collection {}.",
                 feed_id, feed.name, collection_index
@@ -187,6 +188,7 @@ fn remove_feed_from_collection(
     if let Some(coll) = user.rss_lists.get_mut(collection_index) {
         if coll.feeds.remove(&feed_id) {
             db::sqlite::update_user(conn, user)?;
+            db::sqlite::add_subscriber(conn, feed_id, -1)?;
             return Ok(format!(
                 "Removed {} from collection {}.",
                 feed_id, collection_index
@@ -317,7 +319,7 @@ fn show_collection(
 
 async fn newfeed(conn: &Connection, name: String, link: String) -> CustomResult<String> {
     let mut feed = PubmedFeed::build_from_link(&link, &name)?;
-    feed.update_channel_in_place().await?;
+    feed.update_channel_limited().await?;
     feed.update_guid();
     let uid = db::sqlite::add_feed(conn, &feed)?;
     Ok(format!(

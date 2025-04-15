@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::channelwrapper::ChannelWrapper;
 use crate::rsshandler::item_contains_keyword;
 use chrono::DateTime;
@@ -40,6 +38,7 @@ pub struct PubmedFeed {
     pub link: String,
     pub channel: ChannelWrapper,
     pub last_pushed_guid: Option<u32>,
+    pub subscribers: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -143,8 +142,12 @@ impl PubmedFeed {
         Ok(self)
     }
 
-    pub async fn update_channel_in_place(&mut self) -> Result<(), Box<dyn Error + Sync + Send>> {
-        // Only update once every hour
+    pub async fn update_channel_limited(&mut self) -> Result<(), Box<dyn Error + Sync + Send>> {
+        // Don't update if no subscribers
+        if self.subscribers == 0 {
+            return Ok(());
+        }
+        // Don't update if update < 1 hour ago
         if let Some(last_build_date) = self.channel.last_build_date() {
             let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date)?.into();
             let diff = Local::now() - prev;
@@ -152,7 +155,6 @@ impl PubmedFeed {
                 return Ok(());
             }
         }
-
         let newchannel = self.download_channel().await?;
         self.channel = newchannel;
         log::trace!("Succesfully updated channel {}", &self.name);
@@ -217,6 +219,7 @@ impl PubmedFeed {
             link,
             channel: ChannelWrapper::new(),
             last_pushed_guid: None,
+            subscribers: 0u32,
         })
     }
     pub fn key(&self) -> &String {
@@ -385,19 +388,22 @@ mod tests {
             link: "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=5&name=Insights%20Imaging&utm_campaign=journals".to_string(),
 	    uid: Some(101532453),
 	    channel: ChannelWrapper::new(),
-            last_pushed_guid: None};
+            last_pushed_guid: None,
+            subscribers: 0};
         let journal2 = PubmedFeed {
 	    name: "something else".to_string(),
             link: "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532454/?limit=5&utm_campaign=journals".to_string(),
 	    uid: Some(100000),
 	    channel: ChannelWrapper::new(),
-            last_pushed_guid: None};
+            last_pushed_guid: None,
+            subscribers: 0};
         let journal11 = PubmedFeed {
 	    name: "something else".to_string(),
             link: "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=5&name=Insights%20Imaging&utm_campaign=journals".to_string(),
 	    uid: Some(101532453),
 	    channel: ChannelWrapper::new(),
-            last_pushed_guid: None};
+            last_pushed_guid: None,
+            subscribers: 0};
         assert_eq!(journal1, journal11);
         let vec = vec![journal1, journal2];
         assert!(vec.contains(&journal11));
