@@ -393,49 +393,15 @@ pub mod sqlite {
     }
 }
 
-// pub mod redis {
-//     use crate::datastructs::ChannelLookupTable;
-//     use crate::datastructs::User;
-//     use redis::{AsyncCommands, RedisError, aio::MultiplexedConnection};
 
-//     pub async fn connect() -> Result<MultiplexedConnection, Box<dyn std::error::Error + Sync + Send>>
-//     {
-//         let client = redis::Client::open("redis://127.0.0.1:7777/")?;
-//         let conn = client.get_multiplexed_async_connection().await?;
-//         // let conn = client.get_connection()?;
-//         log::info!("Redis connection established");
-//         Ok(conn)
-//     }
+#[cfg(test)]
+mod tests {
 
-//     pub async fn get_userlist(conn: &mut MultiplexedConnection) -> Result<Vec<User>, RedisError> {
-//         conn.get::<&str, String>("userlist")
-//             .await
-//             .and_then(|json| Ok(serde_json::from_str::<Vec<User>>(&json).unwrap()))
-//     }
+    use super::*;
 
-//     pub async fn set_userlist(
-//         conn: &mut MultiplexedConnection,
-//         userlist: &Vec<User>,
-//     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//         conn.set::<&str, String, ()>("userlist", serde_json::to_string(userlist)?)
-//             .await?;
-//         Ok(())
-//     }
-
-//     pub async fn get_lookuptable(
-//         conn: &mut MultiplexedConnection,
-//     ) -> Result<ChannelLookupTable, RedisError> {
-//         conn.get::<&str, String>("channellookuptable")
-//             .await
-//             .and_then(|json| Ok(serde_json::from_str::<ChannelLookupTable>(&json).unwrap()))
-//     }
-
-//     pub async fn set_lookuptable(
-//         conn: &mut MultiplexedConnection,
-//         lookuptable: &ChannelLookupTable,
-//     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//         conn.set::<&str, String, ()>("channellookuptable", serde_json::to_string(lookuptable)?)
-//             .await?;
-//         Ok(())
-//     }
-// }
+    #[test]
+    fn test_db_update() {
+        let conn = sqlite::open("target/debug/database.db3").unwrap();
+        sqlite::update_db(&conn);
+    }
+}
