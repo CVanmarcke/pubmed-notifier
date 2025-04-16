@@ -335,11 +335,7 @@ pub mod sqlite {
                 name: row.get(1)?,
                 uid: Some(row.get(0)?),
                 link: row.get(2)?,
-                channel: {
-                    let s: String = row.get(3)?;
-                    ChannelWrapper::from_json(&s)
-                        .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?
-                },
+                channel: row.get(3)?,
                 last_pushed_guid: row.get(4)?,
                 subscribers: row.get(5).unwrap_or(0),
             }))

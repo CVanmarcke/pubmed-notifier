@@ -2,6 +2,10 @@ use chrono::ParseError;
 use chrono::prelude::*;
 use rss::Channel;
 use rss::Item;
+use rusqlite::types::FromSql;
+use rusqlite::types::FromSqlError;
+use rusqlite::types::FromSqlResult;
+use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -86,6 +90,18 @@ impl ChannelWrapper {
 //         Ok(ChannelWrapper(channel))
 //     }
 // }
+
+impl FromSql for ChannelWrapper {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value {
+            ValueRef::Text(s) => serde_json::from_slice(s), // KO for b"text"
+            ValueRef::Blob(b) => serde_json::from_slice(b),
+            ValueRef::Null => Ok(ChannelWrapper::default()),
+            _ => return Err(FromSqlError::InvalidType),
+        }
+            .map_err(|err| FromSqlError::Other(Box::new(err)))
+    }
+}
 
 impl Deref for ChannelWrapper {
     type Target = Channel;
