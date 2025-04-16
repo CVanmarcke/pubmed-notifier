@@ -438,7 +438,6 @@ fn _get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "lowercase", parse_with = "split")]
 pub enum AdminCommand {
-    // GetNewSince { date: String }, // in format YYY-mm-dd
     #[command(description = "Display this text.")]
     AdminHelp,
     #[command(description = "Update all the feeds.")]
@@ -447,6 +446,8 @@ pub enum AdminCommand {
     Users,
     #[command(description = "Execute a command as another user.", parse_with = as_user_parser)]
     AsUser { id: i64, msg: String },
+    #[command(description = "[feed_id] [item_index] - Get an item from a feed.")]
+    GetItem { feed_id: u32, index: usize },
 }
 
 pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> CustomResult<String> {
@@ -459,7 +460,7 @@ pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> Cu
         .into());
     }
     match command.unwrap() {
-        // AdminCommand::GetNewSince {date} => exec_admin(admin, user, || get_new_since(conn, user, date)), // in format YYY-mm-dd
+        AdminCommand::GetItem {feed_id, index} =>  get_item_from_feed(conn, feed_id, index), // in format YYY-mm-dd
         AdminCommand::AdminHelp => Ok(AdminCommand::descriptions().to_string()),
         AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
         AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
@@ -481,6 +482,19 @@ fn as_user_parser(s: String) -> Result<(i64, String), ParseError> {
         None => Err(ParseError::Custom("Wrong command. Provide a UserId and a command, divided with spaces.".to_string().into()))
     }
 }
+
+fn get_item_from_feed(conn: &Connection, feed_id: u32, index: usize) -> CustomResult<String> {
+    match db::sqlite::get_feed(conn, feed_id)? {
+        Some(feed) => {
+            match feed.channel.items.get(index) {
+                Some(item) => Ok(PreppedMessage::build(item).format(ParseMode::MarkdownV2)),
+                None => Ok("Index out of bounds!".to_string()),
+            }
+        },
+        None => Ok("No feed with that id!".to_string()),
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
