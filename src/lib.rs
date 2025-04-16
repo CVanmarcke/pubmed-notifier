@@ -332,7 +332,7 @@ mod tests {
         let conn = db::sqlite::open("target/debug/database.db3").unwrap();
 
         let mut to_send = Vec::new();
-        for uid in &collection.feeds {
+        for uid in collection.feeds {
             let pmfeed = db::sqlite::get_feed(&conn, uid).unwrap().unwrap();
             let mut items = Vec::new();
             for item in pmfeed.channel.items() {

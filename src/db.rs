@@ -325,7 +325,7 @@ pub mod sqlite {
         Ok(acc)
     }
 
-    pub fn get_feed(conn: &Connection, id: &u32) -> Result<Option<PubmedFeed>, rusqlite::Error> {
+    pub fn get_feed(conn: &Connection, id: u32) -> Result<Option<PubmedFeed>, rusqlite::Error> {
         let mut stmt = conn
             .prepare("SELECT id, name, link, channel, last_pushed_guid, subscribers FROM feeds WHERE id=(?1)")?;
         let mut rows = stmt.query([id])?;
@@ -378,7 +378,7 @@ pub mod sqlite {
                 format!(
                     "{}: {}, ",
                     &uid,
-                    match get_feed(conn, uid)? {
+                    match get_feed(conn, *uid)? {
                         Some(feed) => feed.name,
                         None => "Corresponding feed not found.".to_string(),
                     }
@@ -406,11 +406,25 @@ pub mod sqlite {
 #[cfg(test)]
 mod tests {
 
+    use simple_expand_tilde::expand_tilde;
+    use teloxide::types::ParseMode;
+
+    use crate::formatter::PreppedMessage;
+
     use super::*;
 
     #[test]
     fn test_db_update() {
         let conn = sqlite::open("target/debug/database.db3").unwrap();
-        sqlite::update_db(&conn);
+        sqlite::update_db(&conn).unwrap();
+    }
+    #[test]
+    fn test_read_channel() {
+        let target = expand_tilde("target/debug/database.db3").unwrap();
+        let conn = sqlite::open(target.to_str().unwrap()).unwrap();
+        let feed = sqlite::get_feed(&conn, 401260).unwrap().unwrap();
+        let item = feed.channel.items.get(0).unwrap();
+        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        println!("{}", message);
     }
 }

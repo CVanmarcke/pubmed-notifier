@@ -162,7 +162,7 @@ fn add_feed_to_collection(
     // Get userCollection, if it exists
     if let Some(coll) = user.rss_lists.get_mut(collection_index) {
         // Check that the feed_id actually corresponds with an existing channel.
-        if let Some(feed) = db::sqlite::get_feed(conn, &feed_id)? {
+        if let Some(feed) = db::sqlite::get_feed(conn, feed_id)? {
             coll.feeds.insert(feed_id);
             db::sqlite::update_user(conn, user)?;
             db::sqlite::add_subscriber(conn, feed_id, 1)?;
