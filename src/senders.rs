@@ -16,7 +16,7 @@ pub trait Sender {
     async fn send_items(
         &self,
         user: &User,
-        items: &Vec<&Item>,
+        items: &[&Item],
     ) -> Vec<Result<(), Box<dyn Error + Sync + Send>>>;
 }
 
@@ -58,7 +58,7 @@ impl Sender for ConsoleSender {
     async fn send_items(
         &self,
         user: &User,
-        items: &Vec<&Item>,
+        items: &[&Item],
     ) -> Vec<Result<(), Box<dyn Error + Sync + Send>>> {
         log::info!(
             "Sending {} items to the console for user {}",
@@ -142,7 +142,7 @@ impl Sender for TelegramSender {
     async fn send_items(
         &self,
         user: &User,
-        items: &Vec<&Item>,
+        items: &[&Item],
     ) -> Vec<Result<(), Box<dyn Error + Sync + Send>>> {
         let mut r = Vec::new();
         for item in items {

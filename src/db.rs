@@ -423,7 +423,7 @@ mod tests {
         let target = expand_tilde("target/debug/database.db3").unwrap();
         let conn = sqlite::open(target.to_str().unwrap()).unwrap();
         let feed = sqlite::get_feed(&conn, 401260).unwrap().unwrap();
-        let item = feed.channel.items.get(0).unwrap();
+        let item = feed.channel.items.first().unwrap();
         let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
         println!("{}", message);
     }

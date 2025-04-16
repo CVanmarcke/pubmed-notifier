@@ -62,7 +62,7 @@ impl User {
     pub fn to_json(&self) -> serde_json::Result<String> {
         serde_json::to_string(&self)
     }
-    pub fn build_from_json(json: &String) -> serde_json::Result<User> {
+    pub fn build_from_json(json: &str) -> serde_json::Result<User> {
         serde_json::from_str(json)
     }
     // TODO
