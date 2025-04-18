@@ -1,6 +1,7 @@
 use regex::{Captures, Regex};
 use rss::Item;
 use teloxide::{types::ParseMode, utils::markdown};
+use std::sync::LazyLock;
 
 pub struct PreppedMessage {
     pub title: String,
@@ -10,20 +11,39 @@ pub struct PreppedMessage {
     pub doi: Option<String>,
 }
 
+// We make a lazyLock of a struct with our compiled regex queries.
+// That way we don'nt need to recompile the regex query every time.
+// https://doc.rust-lang.org/std/sync/struct.LazyLock.html
+static REGEXSTRUCT: LazyLock<RegexStruct> = LazyLock::new(|| {
+    RegexStruct::new()
+});
+
+struct RegexStruct {
+    pub remove_italic_keyword_re: Regex,
+    pub bold_keyword_re: Regex,
+    pub capital_keyword_re: Regex,
+    pub bold_re: Regex,
+    pub italic_re: Regex,
+}
+
+impl RegexStruct {
+    fn new() -> RegexStruct {
+        log::debug!("Initializing RegexStruct. This should only happen once.");
+        RegexStruct {
+            remove_italic_keyword_re: Regex::new(r"(?m)(^|\w|\.)\\_\\_([A-Za-z ]+?):\\_\\_(\w)").unwrap(),
+            bold_keyword_re: Regex::new(r"(\.|^) ?(Background|Objective|Purpose|Materials and Methods|Results|Conclusion|Clinical Impact|Evidence Synthesis|Evidence Acquisition)[:.]? ?([A-Z])").unwrap(),
+            capital_keyword_re: Regex::new(r"(?m)^([A-Z ]+:) ").unwrap(),
+            bold_re: Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap(),
+            italic_re: Regex::new(r"(?m)\*(.+?)\*").unwrap(),
+        }
+    }
+}
+
 impl PreppedMessage {
     pub fn build(item: &Item) -> PreppedMessage {
         let title = html2md::rewrite_html(item.title().unwrap_or(""), false);
         let mut content = None;
-        let journal = Some(
-            item.dublin_core_ext()
-                .unwrap()
-                .clone()
-                .sources()
-                .iter()
-                .next()
-                .unwrap()
-                .to_owned(),
-        );
+        let journal = Self::extract_journal(item);
 
         let content_formatted = html2md::rewrite_html(item.content().unwrap_or(""), false);
         // .replace("**", "*");
@@ -55,6 +75,15 @@ impl PreppedMessage {
             pmid,
             doi,
         }
+    }
+
+    fn extract_journal(item: &Item) -> Option<String> {
+            item.dublin_core_ext()?
+                .clone()
+                .sources()
+                .iter()
+                .next()
+                .cloned()
     }
 
     fn format_link_markdownv2(text: &str, baseurl: &str, pmid_or_doi: &str) -> String {
@@ -129,15 +158,15 @@ impl PreppedMessage {
             text = text.replace(r"&lt;", r"\<");
             text = text.replace(r"&gt;", r"\>");
 
-            let boldre = Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap();
-            text = boldre
+
+            let re = &*REGEXSTRUCT;
+            text = re.bold_re
                 .replace_all(&text, |caps: &Captures| -> String {
                     markdown::bold(&caps[1])
                 })
                 .to_string();
 
-            let italicre = Regex::new(r"(?m)\*(.+?)\*").unwrap();
-            text = italicre
+            text = re.italic_re
                 .replace_all(&text, |caps: &Captures| -> String {
                     markdown::italic(&caps[1])
                 })
@@ -159,34 +188,35 @@ impl PreppedMessage {
         if parsemode == ParseMode::MarkdownV2 {
             let mut content = content.to_string();
             // let mut content = markdown::escape(content);
-            content = content.replace(r"&lt;", r"\<");
-            content = content.replace(r"&gt;", r"\>");
+            // content = content.replace(r"&lt;", r"\<");
+            // content = content.replace(r"&gt;", r"\>");
 
             content = Self::format_markup(&content, parsemode);
-            // let boldre = Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap();
-            // content = boldre
-            //     .replace_all(&content, |caps: &Captures| -> String {
-            //         markdown::bold(&caps[1])
-            //     })
-            //     .to_string();
 
-            // let italicre = Regex::new(r"(?m)\*(.+?)\*").unwrap();
-            // content = italicre
-            //     .replace_all(&content, |caps: &Captures| -> String {
-            //         markdown::italic(&caps[1])
-            //     })
-            //     .to_string();
+            // Remove RSNA footer copyright
+            if let Some(rsna_footer) = content.find(" ©RSNA") {
+                content.truncate(rsna_footer)
+            }
 
-            // For the journal "Radiology"
-            let boldkeywordsre = Regex::new(r"\. (Background|Purpose|Materials and Methods|Results|Conclusion)( [A-Z])").unwrap();
-            content = boldkeywordsre
+            let re = &*REGEXSTRUCT;
+            // For AJR:
+            content = re.remove_italic_keyword_re
                 .replace_all(&content, |caps: &Captures| -> String {
-                    format!(".\n\n{}:{}", markdown::bold(&caps[1].to_uppercase()), &caps[2])
+                    format!("{} {}: {}", &caps[1], &caps[2], &caps[3])
                 })
                 .to_string();
 
-            let re = Regex::new(r"(?m)^([A-Z ]+:) ").unwrap();
-            re.replace_all(&content, |caps: &Captures| -> String {
+            // For the journal "Radiology" and Acta radiologica (Sweden)
+            content = re.bold_keyword_re
+                .replace_all(&content, |caps: &Captures| -> String {
+                    format!("{}\n\n{} {}",
+                        &caps[1],
+                        markdown::bold(&(caps[2].to_uppercase() + ":")),
+                        &caps[3])
+                })
+                .trim().to_string();
+
+            re.capital_keyword_re.replace_all(&content, |caps: &Captures| -> String {
                 format!("\n{} ", markdown::bold(&caps[1]))
             })
             .trim()
