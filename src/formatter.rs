@@ -197,53 +197,9 @@ impl PreppedMessage {
     }
 }
 
-pub fn _format_item_content(item: &Item) -> String {
-    let mut title = html2md::rewrite_html(item.title().unwrap_or(""), false);
-    let mut content = html2md::rewrite_html(item.content().unwrap_or(""), false);
-    content = content.replace("**", "*");
-
-    let (mut pmid, mut doi) = (None, None);
-    let identifiers = item.dublin_core_ext().unwrap().identifiers();
-    for id in identifiers {
-        if id.contains("pmid:") {
-            pmid = Some(&id[5..]);
-        } else if id.contains("doi:") {
-            doi = Some(&id[4..]);
-        }
-    }
-    let source = item.dublin_core_ext().unwrap().sources().iter().next();
-
-    let abstr_start = content.find("*ABSTRACT*\n");
-    let pmid_start = content.find("PMID:[").unwrap();
-    if let Some(x) = abstr_start {
-        content = content[x + 11..pmid_start].to_string();
-    } else {
-        return "No abstract.".to_string();
-    }
-
-    if source.is_some() {
-        content = format!("_{}_\n\n{}", source.unwrap(), content);
-    }
-    if doi.is_some() {
-        title = format!("[{}](https://doi.org/{})", title, doi.unwrap());
-        content = format!("{}\n[link](https://doi.org/{}) | ", content, doi.unwrap());
-    }
-    if pmid.is_some() {
-        content = format!(
-            "{}[Pubmed](https://pubmed.ncbi.nlm.nih.gov/{}/) | \
-[QxMD](https://qxmd.com/r/{})",
-            content,
-            pmid.unwrap(),
-            pmid.unwrap()
-        );
-    }
-    format!("{title}\n{content}")
-}
-
 #[cfg(test)]
 mod tests {
     use std::{fs::File, io::Read};
-
     use crate::channelwrapper::ChannelWrapper;
 
     use super::*;
@@ -257,17 +213,19 @@ mod tests {
 
         let item = &channel.items[0];
         let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
-        let result = r"[Deep learning assisted detection and segmentation of uterine fibroids using multi\-orientation magnetic resonance imaging](https://doi\.org/10\.1007/s00261\-025\-04934\-8)
+        let result = r"[Quantitative MRI radiomics approach for evaluating muscular alteration in Crohn disease: development of a machine learning\-nomogram composite diagnostic tool](https://doi\.org/10\.1007/s00261\-025\-04896\-x)
 _Abdominal radiology \(New York\)_
 
-*PURPOSE:* To develop deep learning models for automated detection and segmentation of uterine fibroids using multi\-orientation MRI\.
+*BACKGROUND:* Emerging evidence underscores smooth muscle hyperplasia and hypertrophy, rather than fibrosis, as the defining characteristics of fibrostenotic lesions in Crohn disease \(CD\)\. However, non\-invasive methods for quantifying these muscular changes have yet to be fully explored\.
 
-*METHODS:* Pre\-treatment sagittal and axial T2\-weighted MRI scans acquired from patients diagnosed with uterine fibroids were collected\. The proposed segmentation models were constructed based on the three\-dimensional nnU\-Net framework\. Fibroid detection efficacy was assessed, with subgroup analyses by size and location\. The segmentation performance was evaluated using Dice similarity coefficients \(DSCs\), 95% Hausdorff distance \(HD95\), and average surface distance \(ASD\)\.
+*AIMS:* To explore the application value of radiomics based on magnetic resonance imaging \(MRI\) post\-contrast T1\-weighted images to identify muscular alteration in CD lesions with significant inflammation\.
 
-*RESULTS:* The internal dataset comprised 299 patients who were divided into the training set \(n \= 239\) and the internal test set \(n \= 60\)\. The external dataset comprised 45 patients\. The sagittal T2WI model and the axial T2WI model demonstrated recalls of 74\.4%/76\.4% and precision of 98\.9%/97\.9% for fibroid detection in the internal test set\. The models achieved recalls of 93\.7%/95\.3% for fibroids ≥4 cm\. The recalls for International Federation of Gynecology and Obstetrics \(FIGO\) type 2\-5, FIGO types 0\\\\1\\\\2\(submucous\), fibroids FIGO types 5\\\\6\\\\7\(subserous\) were 100%/100%, 73\.3%/78\.6%, and 80\.3%/81\.9%, respectively\. The proposed models demonstrated good performance in segmentation of the uterine fibroids with mean DSCs of 0\.789 and 0\.804, HD95s of 9\.996 and 10\.855 mm, and ASDs of 2\.035 and 2\.115 mm in the internal test set, and with mean DSCs of 0\.834 and 0\.818, HD95s of 9\.971 and 11\.874 mm, and ASDs of 2\.031 and 2\.273 mm in the external test set\.
+*METHODS:* A total of 68 cases were randomly assigned in this study, with 48 cases allocated to the training dataset and the remaining 20 cases assigned to the independent test dataset\. Radiomic features were extracted and constructed a diagnosis model by univariate analysis and least absolute shrinkage and selection operator \(LASSO\) regression\. Construct a nomogram based on multivariate logistic regression analysis, integrating radiomics signature, MRI features and clinical characteristics\.
 
-*CONCLUSION:* The proposed deep learning models showed promise as reliable methods for automating the detection and segmentation of the uterine fibroids, particularly those of clinical relevance\.
-[Link](https://doi\.org/10\.1007/s00261\-025\-04934\-8) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40188260) \| [QxMD](https://qxmd\.com/r/40188260)";
+*RESULTS:* The radiomics model constructed based on the selected features of the post\-contrasted T1\-weighted images has good diagnostic performance, which yielded a sensitivity of 0\.880, a specificity of 0\.783, and an accuracy of 0\.833 \[AUC \= 0\.856, 95% confidence interval \(CI\) \= 0\.765\-0\.947\]\. Moreover, the nomogram representing the integrated model achieved good discrimination performances, which yielded a sensitivity of 0\.836, a specificity of 0\.892, and an accuracy of 0\.864 \(AUC \= 0\.926, 95% CI \= 0\.865\-0\.988\), and it was better than that of the radiomics model alone\.
+
+*CONCLUSIONS:* The radiomics based on post\-contrasted T1\-weighted images provides additional biomarkers for Crohn disease\. Additionally, integrating DCE\-MRI, radiomics, and clinical data into a comprehensive model significantly improves diagnostic accuracy for identifying muscular alteration\.
+[Link](https://doi\.org/10\.1007/s00261\-025\-04896\-x) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40232416) \| [QxMD](https://qxmd\.com/r/40232416)";
 
         assert_eq!(message, result);
 
@@ -278,19 +236,44 @@ _Abdominal radiology \(New York\)_
 
         let item = &channel.items[7];
         let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
-        let result = r"[Predicting Regional Lymph Node Metastases at CT in Microsatellite Instability\-High Colon Cancer](https://doi\.org/10\.1148/radiol\.242122)
+        let result = r"[Intraprotocol Adrenal Vein Sampling Inconsistencies in Primary Aldosteronism Lateralization](https://doi\.org/10\.1148/radiol\.240631)
 _Radiology_
 
-Background Early identification of lymph node metastasis is crucial for microsatellite instability\-high \(MSI\-H\) colon cancer caused by deficient mismatch repair, but accuracy of CT is poor\.
+*BACKGROUND:* Primary aldosteronism can arise from one or both adrenal glands\. Adrenal vein sampling \(AVS\) is the standard of care for identifying patients with lateralized primary aldosteronism who would benefit from surgery\. Variability in AVS lateralization has been primarily attributed to cosyntropin use and lateralization index thresholds\. Data regarding intraprotocol variability are lacking\.
 
-*PURPOSE*: To determine whether CT\-detected lymph node distribution patterns can improve lymph node evaluation in MSI\-H colon cancer\.
+*PURPOSE:* To assess the rates of intraprotocol lateralization inconsistency during simultaneous AVS\.
 
-*MATERIALS AND METHODS*: This two\-center retrospective study included patients with MSI\-H colon cancer who underwent pretreatment CT and radical surgery \(development set, December 2017\-December 2022; test set, January 2016\-January 2024\)\. Lymph node characteristics associated with pathologic lymph node metastasis \(pN\+\), including clinical lymph node stage \(cN\) and distribution patterns \(vascular distribution, jammed cluster, and partial fusion\), were selected \(logistic regression and Kendall tau\-b correlation\) to create a distribution\-based clinical lymph node stage \(dcN\) in the development set\. Diagnostic performance was verified in the test set\. Interobserver agreement was assessed by using Fleiss κ\. Clinical value of dcN was assessed using univariable logistic analysis among patients in the treatment set receiving neoadjuvant immunotherapy \(August 2017\-February 2024\)\.
+*MATERIALS AND METHODS:* This retrospective cross\-sectional study assessed patients with primary aldosteronism who underwent simultaneous AVS at a single tertiary referral center between January 2015 and December 2023\. Six sets of adrenal vein and peripheral vein samples were obtained: three baseline samples obtained after cannulation, 5 minutes apart; and three samples obtained between 5 and 30 minutes after cosyntropin stimulation\. Patients with successful cannulation and valid hormonal data at all six time points were included\. A lateralization index \(computed as the aldosterone\-to\-cortisol ratio between the two adrenal veins, with the highest number as numerator\) of at least 4 was considered indicative of lateralized primary aldosteronism\. The proportions of baseline and stimulated AVS sets within which one of three lateralization indexes provided different subtype results were assessed\. Linear mixed\-effects models were used to estimate the between\- and within\-patient hormonal and lateralization index variances\.
 
-*RESULTS*: The study included 368 patients \(median age, 60 years \[IQR, 50\-70 years\]; 211 male\): 230 from the development set \(median age, 59 years \[IQR, 49\-70 years\]\), 86 from the test set \(median age, 66 years \[IQR, 55\-79 years\]\), and 52 from the treatment set \(median age, 54 years \[IQR, 42\-65 years\]\)\. Only jammed cluster and partial fusion were associated with higher odds of pN\+ \(odds ratio, 78\.9 and 21\.5, respectively; both\_P\_\< \.001\)\. dcN outperformed cN in the test set \(accuracy, 90% \[78 of 87\] vs 46% \[40 of 87\];\_P\_\< \.001; specificity, 97% \[55 of 57\] vs 26% \[15 of 57\];\_P\_\< \.001\)\. Interobserver agreement was moderate for dcN \(κ \= 0\.67\) and poor for cN \(κ \= 0\.48\)\. dcN was associated with a complete response after neoadjuvant immunotherapy \(odds ratio, 0\.05;\_P\_\< \.001\)\. Conclusion dcN showed high performance for identifying regional lymph node metastases and helped predict complete response after neoadjuvant immunotherapy in MSI\-H colon cancer using a surgical reference standard\. ©RSNA, 2025\_Supplemental material is available for this article\.\_See also the editorial by Lev\-Cohain and Sosna in this issue\.
-[Link](https://doi\.org/10\.1148/radiol\.242122) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40197093) \| [QxMD](https://qxmd\.com/r/40197093)";
+*RESULTS:* Of 402 patients \(median age, 53 years; IQR, 45\-63 years; 233 male\) included, 129 patients \(32\.1%\) had at least one lateralization index inconsistency\. Of these 402 patients, 89 patients \(22\.1%\) had lateralization inconsistencies within the baseline sets, 53 patients \(13\.2%\) within cosyntropin\-stimulated sets, and 13 patients \(3\.2%\) in both baseline and cosyntropin\-stimulated sets\. The highest outlier prevalence occurred in the first \(42 patients; 10\.4%\) and third \(33 patients; 8\.2%\) baseline samples, with roughly twofold\-lower rates in the first \(23 patients; 5\.7%\) and last postcosyntropin stimulation samples \(4\.2%; 17 patients\)\. The absolute change in baseline and cosyntropin\-stimulated lateralization index \(maximum\-minimum lateralization index within a triplicate\) was as high as 152\.9 and 327\.4, respectively\. The highest hormonal variability was noted in the adrenal vein producing less aldosterone\.
 
-        assert_eq!(message, result)
+*CONCLUSION:* Almost a third of patients undergoing AVS in triplicate, both before and after cosyntropin stimulation, had intraprotocol discrepancies in lateralization results, with the highest variability occurring within samples obtained without cosyntropin stimulation\.
+[Link](https://doi\.org/10\.1148/radiol\.240631) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40232138) \| [QxMD](https://qxmd\.com/r/40232138)";
 
+        assert_eq!(message, result);
+
+        let mut file = File::open("test/channel_AJR.json").unwrap();
+        let mut json = String::new();
+        file.read_to_string(&mut json).unwrap();
+        let channel = ChannelWrapper::from_json(&json).unwrap();
+
+        let item = &channel.items[0];
+        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        let result = r"[Interreader Agreement of Lung\-RADS: A Systematic Review and Meta\-Analysis](https://doi\.org/10\.2214/AJR\.25\.32681)
+_AJR\. American journal of roentgenology_
+
+*BACKGROUND:* Lung\-RADS has shown variable interreader agreement in the literature, in part related to a broad range of factors that may influence the consistency of its implementation\.
+
+*OBJECTIVE:* To assess the interreader agreement of Lung\-RADS and to investigate factors influencing the system's variability\.
+
+*EVIDENCE ACQUISITION:* EMBASE, PubMed, and Cochrane databases were searched for original research studies published through June 18, 2024 reporting the interreader agreement of Lung\-RADS on chest CT\. Random\-effect models were used to calculate pooled kappa coefficients for Lung\-RADS categorization and pooled intraclass correlation coefficients \(ICCs\) for nodule size measurements\. Potential sources of heterogeneity were explored using metaregression analyses\.
+
+*EVIDENCE SYNTHESIS:* The analysis included 11 studies \(1470 patients\) for Lung\-RADS categorization and five studies \(617 patients\) for nodule size measurement\. Interreader agreement for Lung\-RADS categorization was substantial \(κ\=0\.72 \[95% CI, 0\.57\-0\.82\]\), and for nodule size measurement was almost perfect \(ICC\=0\.97 \[95% CI, 0\.90\-0\.99\]\)\. Interreader agreement for Lung\-RADS categorization was significantly associated with the method of nodule measurement \(p\=\.005\), with pooled kappa coefficients for studies using computer\-aided detection \(CAD\)\-based semiautomated volume measurements, using CAD\-based semiautomated diameter measurements, and using manual diameter measurements of 0\.95, 0\.91, and 0\.66, respectively\. Interreader agreement for Lung\-RADS categorization was also significantly associated with studies' nodule type distribution \(p\<\.001\), with pooled kappa coefficients for studies evaluating 100% solid nodules, 30\-99% solid nodules, and \<30% solid nodules of 0\.85, 0\.76, and 0\.55, respectively\. Interreader agreement fornodule size measurement was significantly associated with radiation dose \(p\<\.001\), with pooled ICCs for studies that used standard\-dose CT, used low\-dose CT, and used ultralow\-dose CT of 0\.97, 0\.96, and 0\.59, respectively\. Interreader agreement for nodule size measurement was also significantly associated with the Lung\-RADS version used \(p\=\.02\), with pooled ICCs for studies using Lung\-RADS 1\.1 and using Lung\-RADS 1\.0 of 0\.99 and 0\.93, respectively\.
+
+*CONCLUSION:* While supporting the overall reliability of Lung\-RADS, the findings indicate roles for CAD assistance as well as training and standardized approaches for nodule type characterization to further promote reproducible application\.
+
+*CLINICAL IMPACT:* Consistent nodule assessments will be critical for Lung\-RADS to optimally impact patient management and outcomes\.
+[Link](https://doi\.org/10\.2214/AJR\.25\.32681) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40202356) \| [QxMD](https://qxmd\.com/r/40202356)";
+        assert_eq!(message, result);
     }
 }
