@@ -112,7 +112,7 @@ const DEFAULT_ABDOMEN_WHITELIST: &[&str] = &[
     "endometri",
     "ovary",
     "ovarian",
-    "omentum",
+    " omentum",
     "omental",
     "adnex",
     "cervix",
