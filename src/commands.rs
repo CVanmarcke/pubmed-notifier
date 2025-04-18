@@ -30,6 +30,11 @@ pub enum Command {
     #[command(description = "Create a new, empty collection", parse_with = "split")]
     NewCollection,
     #[command(
+        description = "[collection] - Completely deletes a collection. WARNING: this cannot be undone!)",
+        parse_with = "split"
+    )]
+    DeleteCollection { collection_index: usize },
+    #[command(
         description = "[feed_name] [link] - Add a new pubmed feed. Provide the name of the feed (with any spaces replaced by _) and link.",
         parse_with = "split"
     )]
@@ -124,6 +129,7 @@ pub async fn user_command_handler(
         Command::RemoveFromWhitelist { keyword, collection_index } => remove_from_whitelist(conn, user, keyword, collection_index),
         Command::RemoveFromBlacklist { keyword, collection_index } => remove_from_blacklist(conn, user, keyword, collection_index),
         Command::NewCollection => new_collection(conn, user),
+        Command::DeleteCollection { collection_index } => delete_collection(conn, user, collection_index),
         Command::Presets => show_presets(),
         Command::Preset {preset} => show_preset_content(conn, &preset),
         Command::AddPresetToCollection { preset, collection_index} => add_preset_to_collection(conn, user, preset, collection_index),
@@ -338,6 +344,19 @@ fn new_collection(conn: &Connection, user: &mut User) -> CustomResult<String> {
         "Created new collection with index {}",
         user.rss_lists.len().saturating_sub(1)
     ))
+}
+
+fn delete_collection(conn: &Connection, user: &mut User, collection_index: usize) -> CustomResult<String> {
+    if collection_index < user.rss_lists.len() {
+        user.rss_lists.remove(collection_index);
+        db::sqlite::update_user(conn, user)?;
+        Ok(format!("Removed collection with index {}", collection_index))
+    } else {
+        Ok(format!("The collection with index {} does not exist: pick a collection between 0 and {}",
+                   collection_index,
+                   user.rss_lists.len().saturating_sub(1)
+        ))
+    }
 }
 
 fn show_presets() -> CustomResult<String> {

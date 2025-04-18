@@ -66,6 +66,7 @@ Available settings:
 | /collections                                      | List how many collections you have.                                                                                                               |
 | /collection [collection_id]                       | Show the journals and keywords of a collection. Provide the collection number, starting at 0 (eg "/collection 0")                                 |
 | /newcollection                                    | Create a new, empty collection                                                                                                                    |
+| /deletecollection [collection]                    | Delete a collection (WARNING: can not be undone!)                                                                                                 |
 | /newfeed [feed_name] [link]                       | Add a new pubmed feed. Provide the name of the feed (with any spaces replaced by _) and link.                                                     |
 | /addfeed [feed id] [collection]                   | Add a feed. Provide the id and collection number. Eg. /addfeed 101532453 0 to add Insights in Imaging to your first feed collection.              |
 | /addtowhitelist [word] [collection]               | Add a keyword to the whitelist. Provide the keyword and collection number. Space can be entered by using _. Eg. /addtowhitelist cervical_cancer 0 |
