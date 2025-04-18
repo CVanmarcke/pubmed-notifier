@@ -113,7 +113,7 @@ pub async fn user_command_handler(
     match command.unwrap() {
         Command::Start => Ok("Welcome to the telegram pubmed notifier bot! Send /help for a list of available commands.".to_string()),
         Command::Help => Ok(Command::descriptions().to_string()),
-        Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num]", user.rss_lists.len())) ,
+        Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num] (starting at 0).", user.rss_lists.len())) ,
         Command::Collection { collection_index  } => show_collection(conn, user, collection_index),
         Command::Feeds => list_feeds(conn),
         Command::NewFeed { name, link } =>  newfeed(conn, name, link).await,

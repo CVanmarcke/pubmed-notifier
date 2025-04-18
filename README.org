@@ -3,47 +3,58 @@ This is a program written to extract articles based on a PubMed RSS feed, filter
 
 A key feature is that it is configurable by the users by issuing commands to the Telegram bot. Multiple collections of RSS feeds are possible per user, and every collection can have different keywords in their blacklist and whitelist.
 
-This was mainly a personal project to learn rust. It is far from a well written program.
+This was mainly a personal project to learn rust, so many improvements are possible. For my use case, I consider it nearly feature complete.
 
 * Installation and setup
 ** Installation
 1. Clone the git repo.
 2. Build the dep with ~cargo deb~ and install ~.dep~ (can be automatically installed by building with ~cargo deb --install~).
-3. Create a config file (infra). If you run it as a user the default location for the file is ~~/.config/rssnotify/config.toml~. For systemd it is ~/root/.config/rssnotify/config.toml~ [TODO: run with systemd as --user]
+3. Create a config file (infra). If you run it as a user the default location for the file is ~~/.config/rssnotify/config.toml~ . For systemd it is ~/root/.config/rssnotify/config.toml~ [TODO: run with systemd as --user]
 4. Start with the command line:
    1. As user: ~rssnotify [args]~ (or ~rssnotify [args] &~ to start the process in the background).
-   2. Or with systemd: ~systemctl start rssnotify~. Note that in this case, you need to provide the bot token in the config file root folder or as environment variable.
+   2. Or with systemd: ~systemctl start rssnotify~. Note that in this case, you need to provide the bot token in the config file root folder or as environment variable =TELOXIDE_TOKEN=.
 
 ** Command line arguments
 
-| *Arg*                         | *Setting*                                                                                    |
-|-----------------------------+--------------------------------------------------------------------------------------------|
-| -t / --token [token]        | Set the telegram bot token.                                                                |
-| -np / --non-persistent      | Update feeds and send new items to the users, and shut down afterwards. Does not run in the background. |
-| -u / --update-times [times] | Set the default refresh times (default 9-17). Eg =9-17,19= is every hour between 9-17 + 19h. |
-| -i / --interactive          | Interactive mode: allows you to chat through the command line instead of telegram.         |
-| -d / --debug                |                                                                                            |
-| -f [path]                   | Config file path (default $userdir/.config/rssnotify/config.toml )                         |
-| -p / --db-path [path]       | Database file path (default $userdir/.config/rssnotify/database.db3 )                      |
-| -l / --log-level [level]    | Default =info=. Can be =off=, =error=, =warn=, =info=, =debug=                                         |
+| *Arg*                         | *Setting*                                                                                                 |
+|-----------------------------+---------------------------------------------------------------------------------------------------------|
+| ~-t~ / ~--token [token]~        | Set the telegram bot token.                                                                             |
+| ~-np~ / ~--non-persistent~      | Update feeds and send new items to the users, and shut down afterwards. Does not run in the background. |
+| ~-u~ / ~--update-times [times]~ | Set the default refresh times (default 9-17). Eg =9-17,19= is every hour between 9-17 + 19h.              |
+| ~-i~ / ~--interactive~          | Interactive mode: allows you to chat through the command line instead of telegram.                      |
+| ~-d~ / ~--debug~                |                                                                                                         |
+| ~-f [path]~                   | Config file path (default $userdir/.config/rssnotify/config.toml )                                      |
+| ~-p~ / ~--db-path [path]~       | Database file path (default $userdir/.config/rssnotify/database.db3 )                                   |
+| ~-l~ / ~--log-level [level]~    | Default =info=. Can be =off=, =error=, =warn=, =info=, =debug=                                                      |
 
 ** Config file
 Example configuration below. Put it in ~~/.config/rssnotify/config.toml~ .
 
 #+begin_src toml config.toml
   [config]
-  bot_token = "YOUR BOT TOKEN"
+  bot_token = "YOUR BOT TOKEN" # can also be provided as command line argument or environment variable TELOXIDE_TOKEN
   admin = 1234565 # Optional
   update_time = "9-12,13-16" # Optional. Will update every hour between 9 and 12 'o clock, and every hour between 13 and 16 'o clock local time.
-  db_path = "/home/MYNAME/rssnotifyCustomDatabase.db3" # Optional
+  db_path = "/home/MYNAME/rssnotifyCustomDatabase.db3" # Optional. Default is ~/.config/rssnotify/database.db3
 #+end_src
 
 Available settings:
-| admin       |   |
-| bot_token   |   |
-| db_path     |   |
-| log_path    |   |
-| update_time |   |
+| admin       | Chat id of the bot administrator. Gives access to admin commands.                                            |
+| bot_token   | Telegram bot token.                                                                                          |
+| db_path     | Path of the sqlite database. Default ~/.config/rssnotify/database.db3                                        |
+| log_path    | Path of the log file. Default ~/.config/rssnotify/rssnotify.log                                              |
+| update_time | The time it checks for updates and sends the new items to users. Use cron-like language (see example above). |
+
+* Quickstart as user
+- See [[Telegram commands]].
+- Ask the administrator for the bot name / link.
+- Create a new collection: ~/newcollection~. Your first collection will have the index ~0~.
+- Add a preset to the collection: first list the presets by sending ~/presets~, then add it to the collection you created with ~/addpresettocollection [preset] 0~.
+- Repeat adding presets until you are satisfied.
+- You can create a new feed with ~/newfeed myfeedname pubmedlink~, for example:
+  - ~/newfeed endometriosis https://pubmed.ncbi.nlm.nih.gov/rss/search/1RUQ50_F_flqPtgqaAz3FI4qOZ8-xYj8V0QzRmYL6kfJ7uZ5kc/?limit=15&utm_campaign=pubmed-2&fc=20250418055405~ to create a new feed based on the endometriosis mesh term.
+  - The above link can be created in pubmed by selecting =Create RSS= under the search bar.
+- Add your new feed with ~/addfeed [feed_id] [collection_index]~ .
 
 * Telegram commands
 - Send /help to the telegram bot to view a list of commands.
@@ -69,13 +80,16 @@ Available settings:
 
 * Admin commands
 
-    | /update                | Update all the feeds (can take a while). |
-    | /users                 | List all the users in the database.      |
-    | /asUser [id] [command] | Execute a command as another user        |
+    | /adminhelp                 | Show the admin commands                             |
+    | /update                    | Update all the feeds (can take a while).            |
+    | /users                     | List all the users in the database.                 |
+    | /asuser [id] [command]     | Execute a command as another user                   |
+    | /getitem [feed_id] [index] | Print the n^{nth} item of a feed (with escaped chars). |
 
 
 * To do
 - Integrate ~systemd --user~.
 - Remove ~tokio_rusqlite~ and replace with ~rusqlite~.
 - Dynamic presets based on conf file.
-- Refactor everything.
+- Refactor everything so it follow the rust convention.
+- Rotate logs.
