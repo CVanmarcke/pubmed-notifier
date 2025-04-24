@@ -157,7 +157,7 @@ impl PreppedMessage {
             let mut text = text.to_string();
             text = text.replace(r"&lt;", r"\<");
             text = text.replace(r"&gt;", r"\>");
-
+            text = text.replace(r"&amp;", r"&");
 
             let re = &*REGEXSTRUCT;
             text = re.bold_re
