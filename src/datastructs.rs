@@ -208,7 +208,7 @@ impl PubmedFeed {
         if !link.contains("://pubmed.ncbi.nlm.nih.gov/rss/") {
             return Err("Link provided is not a valid pubmed RSS feed!");
         }
-        let re = Regex::new(r"pubmed.ncbi.nlm.nih.gov/rss/journals/([0-9]+)/.*?limit=([0-9]+).*$")
+        let re = Regex::new(r"://pubmed.ncbi.nlm.nih.gov/rss/journals/([0-9]+)/.*?limit=([0-9]+).*$")
             .unwrap();
         let uid;
         if let Some(caps) = re.captures(&link) {
