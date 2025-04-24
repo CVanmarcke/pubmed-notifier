@@ -40,12 +40,6 @@ pub enum Journals {
     ClinicalGI,
 }
 
-// pub fn available_presets() -> [&'static str; 9] {
-//     ["uro", "abdomen", "default_blacklist", "ai_blacklist",
-//         "radiology_journals", "technical_radiology_journals",
-//         "clinical_urology", "clinical_gi", "clinical_journals"]
-// }
-
 const DEFAULT_URO_WHITELIST: &[&str] = &[
     "urogenital",
     "genitourina",
@@ -133,13 +127,13 @@ const CLINICAL_GI_JOURNALS: &[u32] = &[374630, 100966936];
 const CLINICAL_JOURNALS: &[u32] = &[100909747, 101589553, 255562];
 
 pub fn available_presets() -> String {
-    let mut s = String::from("Keyword preset lists: ");
+    let mut s = String::from("Keyword presets:\n");
     for keyword in Keywords::iter() {
-        s.push_str(&format!("{:?}, ", keyword));
+        s.push_str(&format!("- {:?}\n", keyword));
     }
-    s.push_str("\nJournal preset lists: ");
+    s.push_str("- Journal presets:\n");
     for journal in Journals::iter() {
-        s.push_str(&format!("{:?}, ", journal));
+        s.push_str(&format!("- {:?}\n", journal));
     }
     s
 }
