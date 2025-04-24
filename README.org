@@ -9,7 +9,7 @@ This was mainly a personal project to learn rust, so many improvements are possi
 ** Installation
 1. Clone the git repo.
 2. Build the dep with ~cargo deb~ and install ~.dep~ (can be automatically installed by building with ~cargo deb --install~).
-3. Create a config file (infra). If you run it as a user the default location for the file is ~~/.config/rssnotify/config.toml~ . For systemd it is ~/root/.config/rssnotify/config.toml~ [TODO: run with systemd as --user]
+3. Create a config file (infra). If you run it as a user the default location for the file is ~~/.config/rssnotify/config.toml~. For systemd it is ~/root/.config/rssnotify/config.toml~ [TODO: run with systemd as --user]
 4. Start with the command line:
    1. As user: ~rssnotify [args]~ (or ~rssnotify [args] &~ to start the process in the background).
    2. Or with systemd: ~systemctl start rssnotify~. Note that in this case, you need to provide the bot token in the config file root folder or as environment variable =TELOXIDE_TOKEN=.
@@ -33,8 +33,8 @@ Example configuration below. Put it in ~~/.config/rssnotify/config.toml~ .
 #+begin_src toml config.toml
   [config]
   bot_token = "YOUR BOT TOKEN" # can also be provided as command line argument or environment variable TELOXIDE_TOKEN
-  admin = 1234565 # Optional
-  update_time = "9-12,13-16" # Optional. Will update every hour between 9 and 12 'o clock, and every hour between 13 and 16 'o clock local time.
+  admin = 1234565 # Optional; telegram chat id of the administrator.
+  update_time = "9-12,14-16" # Optional. Will update every hour between 9 and 12 'o clock, and every hour between 14 and 16 'o clock local time.
   db_path = "/home/MYNAME/rssnotifyCustomDatabase.db3" # Optional. Default is ~/.config/rssnotify/database.db3
 #+end_src
 
@@ -77,15 +77,14 @@ Available settings:
 | /presets                                          | List available presets.                                                                                                                           |
 | /preset [preset]                                  | Show preset content.                                                                                                                              |
 | /addpresettocollection [preset_name] [collection] | Add the content of a preset to a collection.                                                                                                      |
-|                                                   |                                                                                                                                                   |
 
 * Admin commands
 
-    | /adminhelp                 | Show the admin commands                             |
+    | /adminhelp                 | Show available admin commands.                  |
     | /update                    | Update all the feeds (can take a while).            |
     | /users                     | List all the users in the database.                 |
-    | /asuser [id] [command]     | Execute a command as another user                   |
-    | /getitem [feed_id] [index] | Print the n^{nth} item of a feed (with escaped chars). |
+    | /asuser [id] [command]     | Execute a command as another user.                  |
+    | /getitem [feed_id] [index] | Print the n^{th} item of a feed (with escaped chars). |
 
 
 * To do
