@@ -1,7 +1,7 @@
 use regex::{Captures, Regex};
 use rss::Item;
 use teloxide::{types::ParseMode, utils::markdown};
-use std::sync::LazyLock;
+use std::{borrow::Cow, sync::LazyLock};
 
 pub struct PreppedMessage {
     pub title: String,
@@ -18,6 +18,14 @@ static REGEXSTRUCT: LazyLock<RegexStruct> = LazyLock::new(|| {
     RegexStruct::new()
 });
 
+enum RegexFilter {
+    RemoveItalicKeyword,
+    BoldKeyword,
+    CapitalizeKeyword,
+    Bold,
+    Italic
+}
+
 struct RegexStruct {
     pub remove_italic_keyword_re: Regex,
     pub bold_keyword_re: Regex,
@@ -30,11 +38,38 @@ impl RegexStruct {
     fn new() -> RegexStruct {
         log::debug!("Initializing RegexStruct. This should only happen once.");
         RegexStruct {
-            remove_italic_keyword_re: Regex::new(r"(?m)(^|\w|\.)\\_\\_([A-Za-z ]+?):\\_\\_(\w)").unwrap(),
+            remove_italic_keyword_re: Regex::new(r"(?m)(^|\w|\.)\\_\\_([A-Za-z ]+?)[:.]\\_\\_(\w)").unwrap(),
             bold_keyword_re: Regex::new(r"(\.|^) ?(Background|Objective|Purpose|Materials and Methods|Results|Conclusion|Clinical Impact|Evidence Synthesis|Evidence Acquisition)[:.]? ?([A-Z])").unwrap(),
-            capital_keyword_re: Regex::new(r"(?m)^([A-Z ]+:) ").unwrap(),
+            capital_keyword_re: Regex::new(r"(?m)(^|\.) ?([A-Z ]+:) ").unwrap(),
             bold_re: Regex::new(r"(?m)\*\*(.+?)\*\*").unwrap(),
             italic_re: Regex::new(r"(?m)\*(.+?)\*").unwrap(),
+        }
+    }
+    pub fn apply<'a>(&self, text: &'a str, filter: RegexFilter) -> Cow<'a, str> {
+        match filter {
+            RegexFilter::RemoveItalicKeyword =>  self.remove_italic_keyword_re
+                .replace_all(text, |caps: &Captures| -> String {
+                    format!("{} {}: {}", &caps[1], &caps[2], &caps[3])
+                }),
+            RegexFilter::BoldKeyword => self.bold_keyword_re // DONT FORGET TO TRIM
+                .replace_all(text, |caps: &Captures| -> String {
+                    format!("{}\n\n{} {}",
+                        &caps[1],
+                        markdown::bold(&(caps[2].to_uppercase() + ":")),
+                        &caps[3])
+                }),
+            RegexFilter::CapitalizeKeyword => self.capital_keyword_re
+                .replace_all(text, |caps: &Captures| -> String {  // DONT FORGET TO TRIM
+                    format!("{}\n{} ", &caps[1], markdown::bold(&caps[2]))
+                }),
+            RegexFilter::Bold =>  self.bold_re
+                .replace_all(text, |caps: &Captures| -> String {
+                    markdown::bold(&caps[1])
+                }),
+            RegexFilter::Italic => self.italic_re
+                .replace_all(text, |caps: &Captures| -> String {
+                    markdown::italic(&caps[1])
+                }),
         }
     }
 }
@@ -160,18 +195,9 @@ impl PreppedMessage {
             text = text.replace(r"&amp;", r"&");
 
             let re = &*REGEXSTRUCT;
-            text = re.bold_re
-                .replace_all(&text, |caps: &Captures| -> String {
-                    markdown::bold(&caps[1])
-                })
-                .to_string();
 
-            text = re.italic_re
-                .replace_all(&text, |caps: &Captures| -> String {
-                    markdown::italic(&caps[1])
-                })
-                .to_string();
-            text
+            text = re.apply(&text, RegexFilter::Bold).into_owned();
+            re.apply(&text, RegexFilter::Italic).into_owned()
         } else {
             todo!()
         }
@@ -179,7 +205,8 @@ impl PreppedMessage {
 
     fn format_title(title: &str, parsemode: ParseMode) -> String {
         // Formats the abstract (escapes invalid characters, bolds RESULT: etc)
-        Self::format_markup(title, parsemode)
+        let formatted = Self::format_markup(title, parsemode);
+        formatted.replace(r"\_", r"")
     }
 
 
@@ -187,9 +214,6 @@ impl PreppedMessage {
         // Formats the abstract (escapes invalid characters, bolds RESULT: etc)
         if parsemode == ParseMode::MarkdownV2 {
             let mut content = content.to_string();
-            // let mut content = markdown::escape(content);
-            // content = content.replace(r"&lt;", r"\<");
-            // content = content.replace(r"&gt;", r"\>");
 
             content = Self::format_markup(&content, parsemode);
 
@@ -200,27 +224,11 @@ impl PreppedMessage {
 
             let re = &*REGEXSTRUCT;
             // For AJR:
-            content = re.remove_italic_keyword_re
-                .replace_all(&content, |caps: &Captures| -> String {
-                    format!("{} {}: {}", &caps[1], &caps[2], &caps[3])
-                })
-                .to_string();
-
+            content = re.apply(&content, RegexFilter::RemoveItalicKeyword).into_owned();
             // For the journal "Radiology" and Acta radiologica (Sweden)
-            content = re.bold_keyword_re
-                .replace_all(&content, |caps: &Captures| -> String {
-                    format!("{}\n\n{} {}",
-                        &caps[1],
-                        markdown::bold(&(caps[2].to_uppercase() + ":")),
-                        &caps[3])
-                })
-                .trim().to_string();
+            content = re.apply(&content, RegexFilter::BoldKeyword).trim().to_string();
 
-            re.capital_keyword_re.replace_all(&content, |caps: &Captures| -> String {
-                format!("\n{} ", markdown::bold(&caps[1]))
-            })
-            .trim()
-            .to_string()
+            re.apply(&content, RegexFilter::CapitalizeKeyword).trim().to_string()
         } else {
             todo!()
         }
