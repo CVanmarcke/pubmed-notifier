@@ -165,7 +165,8 @@ pub fn get_preset_journals(journals: Journals) -> HashSet<u32> {
         Journals::ClinicalUrology => CLINICAL_UROLOGY_JOURNALS,
         Journals::ClinicalGI => CLINICAL_GI_JOURNALS,
     }
-    .iter().copied()
+    .iter()
+    .copied()
     .collect::<HashSet<u32>>()
 }
 

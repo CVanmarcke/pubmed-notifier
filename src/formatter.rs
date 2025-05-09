@@ -1,7 +1,7 @@
 use regex::{Captures, Regex};
 use rss::Item;
-use teloxide::{types::ParseMode, utils::markdown};
 use std::{borrow::Cow, sync::LazyLock};
+use teloxide::{types::ParseMode, utils::markdown};
 
 pub struct PreppedMessage {
     pub title: String,
@@ -14,16 +14,14 @@ pub struct PreppedMessage {
 // We make a lazyLock of a struct with our compiled regex queries.
 // That way we don'nt need to recompile the regex query every time.
 // https://doc.rust-lang.org/std/sync/struct.LazyLock.html
-static REGEXSTRUCT: LazyLock<RegexStruct> = LazyLock::new(|| {
-    RegexStruct::new()
-});
+static REGEXSTRUCT: LazyLock<RegexStruct> = LazyLock::new(|| RegexStruct::new());
 
 enum RegexFilter {
     RemoveItalicKeyword,
     BoldKeyword,
     CapitalizeKeyword,
     Bold,
-    Italic
+    Italic,
 }
 
 struct RegexStruct {
@@ -47,26 +45,33 @@ impl RegexStruct {
     }
     pub fn apply<'a>(&self, text: &'a str, filter: RegexFilter) -> Cow<'a, str> {
         match filter {
-            RegexFilter::RemoveItalicKeyword =>  self.remove_italic_keyword_re
+            RegexFilter::RemoveItalicKeyword => self
+                .remove_italic_keyword_re
                 .replace_all(text, |caps: &Captures| -> String {
                     format!("{} {}: {}", &caps[1], &caps[2], &caps[3])
                 }),
-            RegexFilter::BoldKeyword => self.bold_keyword_re // DONT FORGET TO TRIM
+            RegexFilter::BoldKeyword => self
+                .bold_keyword_re // DONT FORGET TO TRIM
                 .replace_all(text, |caps: &Captures| -> String {
-                    format!("{}\n\n{} {}",
+                    format!(
+                        "{}\n\n{} {}",
                         &caps[1],
                         markdown::bold(&(caps[2].to_uppercase() + ":")),
-                        &caps[3])
+                        &caps[3]
+                    )
                 }),
-            RegexFilter::CapitalizeKeyword => self.capital_keyword_re
-                .replace_all(text, |caps: &Captures| -> String {  // DONT FORGET TO TRIM
-                    format!("{}\n{} ", &caps[1], markdown::bold(&caps[2]))
-                }),
-            RegexFilter::Bold =>  self.bold_re
-                .replace_all(text, |caps: &Captures| -> String {
-                    markdown::bold(&caps[1])
-                }),
-            RegexFilter::Italic => self.italic_re
+            RegexFilter::CapitalizeKeyword => {
+                self.capital_keyword_re
+                    .replace_all(text, |caps: &Captures| -> String {
+                        // DONT FORGET TO TRIM
+                        format!("{}\n{} ", &caps[1], markdown::bold(&caps[2]))
+                    })
+            }
+            RegexFilter::Bold => self.bold_re.replace_all(text, |caps: &Captures| -> String {
+                markdown::bold(&caps[1])
+            }),
+            RegexFilter::Italic => self
+                .italic_re
                 .replace_all(text, |caps: &Captures| -> String {
                     markdown::italic(&caps[1])
                 }),
@@ -113,12 +118,12 @@ impl PreppedMessage {
     }
 
     fn extract_journal(item: &Item) -> Option<String> {
-            item.dublin_core_ext()?
-                .clone()
-                .sources()
-                .iter()
-                .next()
-                .cloned()
+        item.dublin_core_ext()?
+            .clone()
+            .sources()
+            .iter()
+            .next()
+            .cloned()
     }
 
     fn format_link_markdownv2(text: &str, baseurl: &str, pmid_or_doi: &str) -> String {
@@ -209,7 +214,6 @@ impl PreppedMessage {
         formatted.replace(r"\_", r"")
     }
 
-
     fn format_abstract(content: &str, parsemode: ParseMode) -> String {
         // Formats the abstract (escapes invalid characters, bolds RESULT: etc)
         if parsemode == ParseMode::MarkdownV2 {
@@ -224,11 +228,18 @@ impl PreppedMessage {
 
             let re = &*REGEXSTRUCT;
             // For AJR:
-            content = re.apply(&content, RegexFilter::RemoveItalicKeyword).into_owned();
+            content = re
+                .apply(&content, RegexFilter::RemoveItalicKeyword)
+                .into_owned();
             // For the journal "Radiology" and Acta radiologica (Sweden)
-            content = re.apply(&content, RegexFilter::BoldKeyword).trim().to_string();
+            content = re
+                .apply(&content, RegexFilter::BoldKeyword)
+                .trim()
+                .to_string();
 
-            re.apply(&content, RegexFilter::CapitalizeKeyword).trim().to_string()
+            re.apply(&content, RegexFilter::CapitalizeKeyword)
+                .trim()
+                .to_string()
         } else {
             todo!()
         }
@@ -237,8 +248,8 @@ impl PreppedMessage {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, io::Read};
     use crate::channelwrapper::ChannelWrapper;
+    use std::{fs::File, io::Read};
 
     use super::*;
 

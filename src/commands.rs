@@ -346,15 +346,23 @@ fn new_collection(conn: &Connection, user: &mut User) -> CustomResult<String> {
     ))
 }
 
-fn delete_collection(conn: &Connection, user: &mut User, collection_index: usize) -> CustomResult<String> {
+fn delete_collection(
+    conn: &Connection,
+    user: &mut User,
+    collection_index: usize,
+) -> CustomResult<String> {
     if collection_index < user.rss_lists.len() {
         user.rss_lists.remove(collection_index);
         db::sqlite::update_user(conn, user)?;
-        Ok(format!("Removed collection with index {}", collection_index))
+        Ok(format!(
+            "Removed collection with index {}",
+            collection_index
+        ))
     } else {
-        Ok(format!("The collection with index {} does not exist: pick a collection between 0 and {}",
-                   collection_index,
-                   user.rss_lists.len().saturating_sub(1)
+        Ok(format!(
+            "The collection with index {} does not exist: pick a collection between 0 and {}",
+            collection_index,
+            user.rss_lists.len().saturating_sub(1)
         ))
     }
 }
@@ -479,7 +487,7 @@ pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> Cu
         .into());
     }
     match command.unwrap() {
-        AdminCommand::GetItem {feed_id, index} =>  get_item_from_feed(conn, feed_id, index), // in format YYY-mm-dd
+        AdminCommand::GetItem { feed_id, index } => get_item_from_feed(conn, feed_id, index), // in format YYY-mm-dd
         AdminCommand::AdminHelp => Ok(AdminCommand::descriptions().to_string()),
         AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
         AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
@@ -496,24 +504,25 @@ fn as_user_parser(s: String) -> Result<(i64, String), ParseError> {
             let id = s[0..first_space]
                 .parse::<i64>()
                 .map_err(|e| ParseError::IncorrectFormat(e.into()))?;
-            Ok((id, s[first_space+1..].to_string()))
-        },
-        None => Err(ParseError::Custom("Wrong command. Provide a UserId and a command, divided with spaces.".to_string().into()))
+            Ok((id, s[first_space + 1..].to_string()))
+        }
+        None => Err(ParseError::Custom(
+            "Wrong command. Provide a UserId and a command, divided with spaces."
+                .to_string()
+                .into(),
+        )),
     }
 }
 
 fn get_item_from_feed(conn: &Connection, feed_id: u32, index: usize) -> CustomResult<String> {
     match db::sqlite::get_feed(conn, feed_id)? {
-        Some(feed) => {
-            match feed.channel.items.get(index) {
-                Some(item) => Ok(PreppedMessage::build(item).format(ParseMode::MarkdownV2)),
-                None => Ok("Index out of bounds!".to_string()),
-            }
+        Some(feed) => match feed.channel.items.get(index) {
+            Some(item) => Ok(PreppedMessage::build(item).format(ParseMode::MarkdownV2)),
+            None => Ok("Index out of bounds!".to_string()),
         },
         None => Ok("No feed with that id!".to_string()),
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -522,11 +531,13 @@ mod tests {
 
     #[test]
     fn test_as_user_parser() {
-        assert_eq!(as_user_parser("136743 /collection 0".to_string()).unwrap(), (136743, "/collection 0".to_string()));
+        assert_eq!(
+            as_user_parser("136743 /collection 0".to_string()).unwrap(),
+            (136743, "/collection 0".to_string())
+        );
         assert!(as_user_parser("aa 1234".to_string()).is_err());
         assert!(as_user_parser("1234".to_string()).is_err());
     }
-
 
     #[test]
     fn test_date() {

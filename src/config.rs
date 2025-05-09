@@ -93,12 +93,19 @@ impl Config {
                     }
                 },
                 "db_path" => match table["db_path"].as_str() {
-                    Some(s) => self.db_path = expand_tilde(s).ok_or("There was a problem parsing the path.")?,
-                    None => 
-                        return Err("Invalid value provided to log_path in the config file!".into()),
+                    Some(s) => {
+                        self.db_path =
+                            expand_tilde(s).ok_or("There was a problem parsing the path.")?
+                    }
+                    None => {
+                        return Err("Invalid value provided to log_path in the config file!".into());
+                    }
                 },
                 "log_path" => match table["log_path"].as_str() {
-                    Some(s) => self.log_path = expand_tilde(s).ok_or("There was a problem parsing the path.")?,
+                    Some(s) => {
+                        self.log_path =
+                            expand_tilde(s).ok_or("There was a problem parsing the path.")?
+                    }
                     None => {
                         return Err("Invalid value provided to log_path in the config file!".into());
                     }
@@ -127,13 +134,17 @@ impl Config {
                     None => return Err("No timestamps provided after -u!".into()),
                 },
                 "-f" => match it.next() {
-                    Some(f) => self.config_path = expand_tilde(f)
-                        .ok_or("There was a problem parsing the path.")?,
+                    Some(f) => {
+                        self.config_path =
+                            expand_tilde(f).ok_or("There was a problem parsing the path.")?
+                    }
                     None => return Err("No config file name provided after -f!".into()),
                 },
                 "-p" | "--db-path" => match it.next() {
-                    Some(f) => self.db_path = expand_tilde(f)
-                        .ok_or("There was a problem parsing the path.")?,
+                    Some(f) => {
+                        self.db_path =
+                            expand_tilde(f).ok_or("There was a problem parsing the path.")?
+                    }
                     None => return Err("No db path provided after -p / --db-path!".into()),
                 },
                 "-t" | "--token" => match it.next() {
@@ -220,7 +231,7 @@ mod tests {
     fn test_config() {
         let result = Config::build(&["".to_string()]).expect("Error!");
         assert!(!result.debugmode);
-        assert_eq!(result.config_path.to_str(), Some("config.json"));
+        assert_eq!(result.config_path.to_str(), Some("rssnotify.toml"));
 
         let result = Config::build(&["aaa".to_string(), "-f".to_string()]);
         assert!(result.is_err());
@@ -238,8 +249,9 @@ mod tests {
     #[test]
     fn test_toml_reader() {
         let mut config = Config::default();
-        config.apply_toml(Path::new("config.toml")).unwrap();
-        assert_eq!(config.admin.unwrap(), 6242952853);
+        config.apply_toml(Path::new("test/rssnotify.toml")).unwrap();
+        assert_eq!(config.bot_token.unwrap(), "MYBOT_TOKEN");
+        assert_eq!(config.admin.unwrap(), 12345);
         assert_eq!(config.update_time, parse_update_time("9-17").unwrap());
     }
 }

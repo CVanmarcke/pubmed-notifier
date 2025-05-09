@@ -99,7 +99,7 @@ impl FromSql for ChannelWrapper {
             ValueRef::Null => Ok(ChannelWrapper::default()),
             _ => return Err(FromSqlError::InvalidType),
         }
-            .map_err(|err| FromSqlError::Other(Box::new(err)))
+        .map_err(|err| FromSqlError::Other(Box::new(err)))
     }
 }
 

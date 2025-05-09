@@ -1,0 +1,4 @@
+[config]
+bot_token = "MYBOT_TOKEN"
+admin = 12345
+update_time = "9-17"

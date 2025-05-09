@@ -25,14 +25,9 @@ pub fn item_contains_keyword(item: &Item, keywords: &HashSet<String>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::formatter::PreppedMessage;
-
     use super::*;
-    use rss::{Channel, ItemBuilder};
+    use rss::ItemBuilder;
     use std::fs;
-    use std::fs::File;
-    use std::io::BufReader;
-    use teloxide::types::ParseMode;
 
     // #[tokio::test]
     async fn _get_feed_test() {
@@ -44,18 +39,6 @@ mod tests {
         channel.write_to(::std::io::sink()).unwrap(); // // write to the channel to a writer
         let string = channel.to_string(); // convert the channel to a string
         fs::write("channel.xml", string).expect("error writing!");
-    }
-
-    #[test]
-    fn _format_test() {
-        let file = File::open("channel.xml").unwrap();
-        let channel = Channel::read_from(BufReader::new(file)).unwrap();
-        let item = &channel.items[0];
-        let content: &str = item.content().unwrap();
-        println!("{}", content);
-        let formatted = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
-        println!("{}", formatted);
-        // assert!(false)
     }
 
     #[tokio::test]

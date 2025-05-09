@@ -8,12 +8,14 @@ use rssnotify::config::Config;
 use rssnotify::datastructs::User;
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
-use rssnotify::{admin_message_handler, console_message_handler, db, make_db, user_message_handler};
+use rssnotify::{
+    admin_message_handler, console_message_handler, db, make_db, user_message_handler,
+};
 use std::collections::BTreeMap;
+use std::env;
 use std::process;
 use std::sync::Arc;
 use std::time::Duration;
-use std::env;
 use teloxide::Bot;
 use teloxide::prelude::*;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler, JobSchedulerError};
@@ -57,9 +59,7 @@ async fn main() {
         false => make_db(&config.db_path).await.unwrap(),
     };
 
-    let aconn = Connection::open(&config.db_path)
-        .await
-        .unwrap();
+    let aconn = Connection::open(&config.db_path).await.unwrap();
     let arcconn = Arc::new(aconn);
 
     if !config.persistent {
@@ -244,7 +244,8 @@ async fn send_new_user<S: Sender>(
             if let Some(items) = new_items.get(feed_id) {
                 // Make new vec with references to the items
                 let filtered: Vec<&Item> = items
-                    .iter().copied()
+                    .iter()
+                    .copied()
                     .filter(|item| collection.filter_item(item))
                     .collect();
                 sender.send_items(user, &filtered).await;

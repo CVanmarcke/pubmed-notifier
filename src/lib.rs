@@ -281,7 +281,7 @@ mod tests {
 
     use super::*;
     use chrono::{DateTime, Local, TimeDelta};
-    use datastructs::{ChannelLookupTable, User, UserRssList};
+    use datastructs::{User, UserRssList};
     use formatter::PreppedMessage;
     use preset::{Journals, Keywords};
     use rsshandler::item_contains_keyword;
@@ -302,13 +302,6 @@ mod tests {
         let user2 = User::build(12344i64, "31 sept 2024".to_string(), vec![abdomen_rss_list]);
         let userlist = vec![user, user2];
         write_data(&userlist, path).expect("Error writing data");
-    }
-
-    #[test]
-    fn test_write_feedlist() {
-        let list = ChannelLookupTable::from_vec(make_feedlist()).unwrap();
-        let s = serde_json::to_string(&list).unwrap();
-        write_data(&s, "target/debug/feedlist.json").expect("Error writing data");
     }
 
     #[tokio::test]

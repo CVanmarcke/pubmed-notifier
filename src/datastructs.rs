@@ -151,7 +151,9 @@ impl PubmedFeed {
         }
         // Don't update if update < 1 hour ago
         if let Some(last_build_date) = self.channel.last_build_date() {
-            let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date).unwrap_or_default().into();
+            let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date)
+                .unwrap_or_default()
+                .into();
             let diff = Local::now() - prev;
             if diff.num_minutes() < 55 {
                 log::debug!("Last update was < 1 hour: skipping update.");
@@ -208,8 +210,9 @@ impl PubmedFeed {
         if !link.contains("://pubmed.ncbi.nlm.nih.gov/rss/") {
             return Err("Link provided is not a valid pubmed RSS feed!");
         }
-        let re = Regex::new(r"://pubmed.ncbi.nlm.nih.gov/rss/journals/([0-9]+)/.*?limit=([0-9]+).*$")
-            .unwrap();
+        let re =
+            Regex::new(r"://pubmed.ncbi.nlm.nih.gov/rss/journals/([0-9]+)/.*?limit=([0-9]+).*$")
+                .unwrap();
         let uid;
         if let Some(caps) = re.captures(&link) {
             uid = Some(caps[1].parse::<u32>().unwrap())
