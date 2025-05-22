@@ -1,10 +1,13 @@
 [Unit]
 AssertPathExists=/usr/bin/rssnotify
 Description=RSSNotify
+Wants=network.target
+After=multiuser.target
 
 [Service]
 ExecStart=/usr/bin/rssnotify
 Restart=always
+RestartSec=10
 PrivateTmp=true
 NoNewPrivileges=true
 
