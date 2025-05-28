@@ -13,16 +13,17 @@ incremental = true
 incremental = true
 
 [profile.release]
-opt-level = 'z'     # Optimize for size
+opt-level = "z"     # Optimize for size
 lto = true          # Enable link-time optimization
 codegen-units = 1   # Reduce number of codegen units to increase optimizations
-panic = 'abort'     # Abort on panic
-strip = true        # Strip symbols from binary*
+panic = "abort"     # Abort on panic
+strip = "debuginfo"        # Strip symbols from binary*
 
 [dependencies]
 rss = {version = "2.0", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
+openssl = { version = "0.10", features = ["vendored"] }
 serde_json = "1.0"
 serde = {version = "1.0.217", features = ["derive"] }
 regex = "1.11.1"
