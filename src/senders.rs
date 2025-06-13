@@ -7,16 +7,21 @@ use teloxide::types::{LinkPreviewOptions, Message, ParseMode};
 use teloxide::utils::markdown;
 use teloxide::{Bot, types::ChatId};
 
-use crate::datastructs::User;
+use crate::datastructs::{ItemMetadata, User};
 use crate::formatter::PreppedMessage;
 
 pub trait Sender {
-    async fn send_item(&self, user: &User, item: &Item)
-    -> Result<(), Box<dyn Error + Sync + Send>>;
+    async fn send_item(
+        &self,
+        user: &User,
+        item: &Item,
+        item_metadata: &ItemMetadata,
+    ) -> Result<(), Box<dyn Error + Sync + Send>>;
     async fn send_items(
         &self,
         user: &User,
         items: &[&Item],
+        item_metadata: &ItemMetadata,
     ) -> Vec<Result<(), Box<dyn Error + Sync + Send>>>;
 }
 
@@ -40,6 +45,7 @@ impl Sender for ConsoleSender {
         &self,
         user: &User,
         item: &Item,
+        item_metadata: &ItemMetadata,
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
         println!("----------------------------------------------");
         println!("Sendin the following item to userid {}", user.chat_id);
@@ -49,7 +55,7 @@ impl Sender for ConsoleSender {
         );
         println!(
             "{}",
-            PreppedMessage::build(item).format(ParseMode::MarkdownV2)
+            PreppedMessage::build(item, item_metadata).format(ParseMode::MarkdownV2)
         );
 
         Ok(())
@@ -59,6 +65,7 @@ impl Sender for ConsoleSender {
         &self,
         user: &User,
         items: &[&Item],
+        item_metadata: &ItemMetadata,
     ) -> Vec<Result<(), Box<dyn Error + Sync + Send>>> {
         log::info!(
             "Sending {} items to the console for user {}",
@@ -67,7 +74,7 @@ impl Sender for ConsoleSender {
         );
         let mut r = Vec::new();
         for item in items {
-            r.push(self.send_item(user, item).await);
+            r.push(self.send_item(user, item, item_metadata).await);
         }
         r
     }
@@ -121,9 +128,11 @@ impl Sender for TelegramSender {
         &self,
         user: &User,
         item: &Item,
+        item_metadata: &ItemMetadata,
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
         if item.content().is_some() {
-            let formatted = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+            let formatted =
+                PreppedMessage::build(item, item_metadata).format(ParseMode::MarkdownV2);
             log::trace!("Sending the following item to userid {}", user.chat_id);
             log::trace!("{}", formatted);
             let result = self.send_message(ChatId(user.chat_id), &formatted).await;
@@ -143,10 +152,11 @@ impl Sender for TelegramSender {
         &self,
         user: &User,
         items: &[&Item],
+        item_metadata: &ItemMetadata,
     ) -> Vec<Result<(), Box<dyn Error + Sync + Send>>> {
         let mut r = Vec::new();
         for item in items {
-            r.push(self.send_item(user, item).await);
+            r.push(self.send_item(user, item, item_metadata).await);
         }
         // TODO joinset want toch allemaal futures....
         r

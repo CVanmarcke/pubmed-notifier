@@ -5,7 +5,7 @@ use log4rs::config::{Appender, Root};
 use rss::Item;
 use rssnotify::commands::{AdminCommand, Command};
 use rssnotify::config::Config;
-use rssnotify::datastructs::User;
+use rssnotify::datastructs::{ItemMetadata, User};
 use rssnotify::senders::TelegramSender;
 use rssnotify::senders::{ConsoleSender, Sender};
 use rssnotify::{
@@ -239,7 +239,12 @@ async fn send_new_user<S: Sender>(
     user: &User,
     new_items: &BTreeMap<u32, Vec<&Item>>,
 ) -> Result<usize, rusqlite::Error> {
-    for collection in user.rss_lists.iter() {
+    for (index, collection) in user.rss_lists.iter().enumerate() {
+        // TODO: add possibility to include keyword
+        let item_metadata = ItemMetadata {
+            collection: Some(index),
+            ..Default::default()
+        };
         for feed_id in collection.feeds.iter() {
             if let Some(items) = new_items.get(feed_id) {
                 // Make new vec with references to the items
@@ -248,7 +253,7 @@ async fn send_new_user<S: Sender>(
                     .copied()
                     .filter(|item| collection.filter_item(item))
                     .collect();
-                sender.send_items(user, &filtered).await;
+                sender.send_items(user, &filtered, &item_metadata).await;
             }
         }
     }

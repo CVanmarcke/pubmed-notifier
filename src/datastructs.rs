@@ -41,6 +41,12 @@ pub struct PubmedFeed {
     pub subscribers: u32,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Default)]
+pub struct ItemMetadata {
+    pub collection: Option<usize>,
+    pub keyword: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ChannelLookupTable(BTreeMap<u32, PubmedFeed>);
 

@@ -1,4 +1,4 @@
-use crate::datastructs::{ChannelLookupTable, PubmedFeed, User, UserRssList};
+use crate::datastructs::{ChannelLookupTable, ItemMetadata, PubmedFeed, User, UserRssList};
 use crate::formatter::PreppedMessage;
 use crate::preset::{self, Keywords, Preset, available_presets};
 use crate::{CustomResult, db};
@@ -455,7 +455,7 @@ fn _get_new_since(conn: &Connection, user: &User, date: String) -> CustomResult<
             println!("----------------------------");
             println!(
                 "{}",
-                PreppedMessage::build(item).format(ParseMode::MarkdownV2)
+                PreppedMessage::build(item, &ItemMetadata::default()).format(ParseMode::MarkdownV2)
             );
         }
     }
@@ -516,10 +516,13 @@ fn as_user_parser(s: String) -> Result<(i64, String), ParseError> {
 
 fn get_item_from_feed(conn: &Connection, feed_id: u32, index: usize) -> CustomResult<String> {
     match db::sqlite::get_feed(conn, feed_id)? {
-        Some(feed) => match feed.channel.items.get(index) {
-            Some(item) => Ok(PreppedMessage::build(item).format(ParseMode::MarkdownV2)),
-            None => Ok("Index out of bounds!".to_string()),
-        },
+        Some(feed) => {
+            match feed.channel.items.get(index) {
+                Some(item) => Ok(PreppedMessage::build(item, &ItemMetadata::default())
+                    .format(ParseMode::MarkdownV2)),
+                None => Ok("Index out of bounds!".to_string()),
+            }
+        }
         None => Ok("No feed with that id!".to_string()),
     }
 }

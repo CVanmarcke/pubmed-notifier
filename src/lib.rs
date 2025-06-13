@@ -279,6 +279,8 @@ pub fn make_feedlist() -> Vec<PubmedFeed> {
 #[cfg(test)]
 mod tests {
 
+    use crate::datastructs::ItemMetadata;
+
     use super::*;
     use chrono::{DateTime, Local, TimeDelta};
     use datastructs::{User, UserRssList};
@@ -341,7 +343,8 @@ mod tests {
                     println!("--------------------------------------");
                     println!(
                         "{}",
-                        PreppedMessage::build(item).format(teloxide::types::ParseMode::MarkdownV2)
+                        PreppedMessage::build(item, &ItemMetadata::default())
+                            .format(teloxide::types::ParseMode::MarkdownV2)
                     );
                 })
                 .filter(|item| item_contains_keyword(item, &collection.whitelist))

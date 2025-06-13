@@ -423,7 +423,7 @@ mod tests {
     use simple_expand_tilde::expand_tilde;
     use teloxide::types::ParseMode;
 
-    use crate::formatter::PreppedMessage;
+    use crate::{datastructs::ItemMetadata, formatter::PreppedMessage};
 
     use super::*;
 
@@ -438,7 +438,8 @@ mod tests {
         let conn = sqlite::open(target.to_str().unwrap()).unwrap();
         let feed = sqlite::get_feed(&conn, 401260).unwrap().unwrap();
         let item = feed.channel.items.first().unwrap();
-        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        let message =
+            PreppedMessage::build(item, &ItemMetadata::default()).format(ParseMode::MarkdownV2);
         println!("{}", message);
     }
 }

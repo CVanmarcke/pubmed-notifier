@@ -3,12 +3,15 @@ use rss::Item;
 use std::{borrow::Cow, sync::LazyLock};
 use teloxide::{types::ParseMode, utils::markdown};
 
-pub struct PreppedMessage {
+use crate::datastructs::ItemMetadata;
+
+pub struct PreppedMessage<'a> {
     pub title: String,
     pub journal: Option<String>,
     pub content: Option<String>,
     pub pmid: Option<String>,
     pub doi: Option<String>,
+    pub item_metadata: &'a ItemMetadata,
 }
 
 // We make a lazyLock of a struct with our compiled regex queries.
@@ -79,8 +82,8 @@ impl RegexStruct {
     }
 }
 
-impl PreppedMessage {
-    pub fn build(item: &Item) -> PreppedMessage {
+impl<'a> PreppedMessage<'a> {
+    pub fn build(item: &Item, item_metadata: &'a ItemMetadata) -> PreppedMessage<'a> {
         let title = html2md::rewrite_html(item.title().unwrap_or(""), false);
         let mut content = None;
         let journal = Self::extract_journal(item);
@@ -114,6 +117,7 @@ impl PreppedMessage {
             content,
             pmid,
             doi,
+            item_metadata,
         }
     }
 
@@ -165,6 +169,12 @@ impl PreppedMessage {
                     ),
                     &PreppedMessage::format_link_markdownv2("QxMD", "https://qxmd.com/r/", pmid)
                 ));
+                if let Some(coll_number) = self.item_metadata.collection {
+                    footer.push_str(&markdown::escape(&format!(" | collection {}", coll_number)));
+                }
+                if let Some(keyword) = self.item_metadata.keyword.as_ref() {
+                    footer.push_str(&markdown::escape(&format!(" | KW: {}", keyword)));
+                }
             }
             result.push('\n');
             result.push_str(&footer);
@@ -261,7 +271,8 @@ mod tests {
         let channel = ChannelWrapper::from_json(&json).unwrap();
 
         let item = &channel.items[0];
-        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        let message =
+            PreppedMessage::build(item, &ItemMetadata::default()).format(ParseMode::MarkdownV2);
         let result = r"[Quantitative MRI radiomics approach for evaluating muscular alteration in Crohn disease: development of a machine learning\-nomogram composite diagnostic tool](https://doi\.org/10\.1007/s00261\-025\-04896\-x)
 _Abdominal radiology \(New York\)_
 
@@ -284,7 +295,8 @@ _Abdominal radiology \(New York\)_
         let channel = ChannelWrapper::from_json(&json).unwrap();
 
         let item = &channel.items[7];
-        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        let message =
+            PreppedMessage::build(item, &ItemMetadata::default()).format(ParseMode::MarkdownV2);
         let result = r"[Intraprotocol Adrenal Vein Sampling Inconsistencies in Primary Aldosteronism Lateralization](https://doi\.org/10\.1148/radiol\.240631)
 _Radiology_
 
@@ -307,7 +319,11 @@ _Radiology_
         let channel = ChannelWrapper::from_json(&json).unwrap();
 
         let item = &channel.items[0];
-        let message = PreppedMessage::build(item).format(ParseMode::MarkdownV2);
+        let item_metadata = ItemMetadata {
+            collection: Some(3),
+            ..Default::default()
+        };
+        let message = PreppedMessage::build(item, &item_metadata).format(ParseMode::MarkdownV2);
         let result = r"[Interreader Agreement of Lung\-RADS: A Systematic Review and Meta\-Analysis](https://doi\.org/10\.2214/AJR\.25\.32681)
 _AJR\. American journal of roentgenology_
 
@@ -322,7 +338,7 @@ _AJR\. American journal of roentgenology_
 *CONCLUSION:* While supporting the overall reliability of Lung\-RADS, the findings indicate roles for CAD assistance as well as training and standardized approaches for nodule type characterization to further promote reproducible application\.
 
 *CLINICAL IMPACT:* Consistent nodule assessments will be critical for Lung\-RADS to optimally impact patient management and outcomes\.
-[Link](https://doi\.org/10\.2214/AJR\.25\.32681) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40202356) \| [QxMD](https://qxmd\.com/r/40202356)";
+[Link](https://doi\.org/10\.2214/AJR\.25\.32681) \| [PubMed](https://pubmed\.ncbi\.nlm\.nih\.gov/40202356) \| [QxMD](https://qxmd\.com/r/40202356) \| collection 3";
         assert_eq!(message, result);
     }
 }
