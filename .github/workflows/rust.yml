@@ -19,33 +19,57 @@ jobs:
         include:
           - os-name: Linux-x86_64
             runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build-type: ubuntu
+          - os-name: Alpine-x86_64
+            runs-on: ubuntu-latest
             target: x86_64-unknown-linux-musl
-          # more targets here ...
+            build-type: alpine
     runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v1
+      - name: Set up Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          command: build
+          toolchain: stable
+          override: true
           target: ${{ matrix.target }}
-          args: "--locked --release"
-          strip: true
+      - name: Install musl-tools (for Alpine build)
+        if: matrix.build-type == 'alpine'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build binary
+        run: |
+          if [ "${{ matrix.build-type }}" = "alpine" ]; then
+            cargo build --release --target x86_64-unknown-linux-musl
+          else
+            cargo build --release
+          fi
       - name: Prepare binary for upload
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/rssnotify dist/rssnotify-${{ matrix.target }}
+          if [ "${{ matrix.build-type }}" = "alpine" ]; then
+            cp target/x86_64-unknown-linux-musl/release/rssnotify dist/rssnotify-alpine-x86_64
+          else
+            cp target/release/rssnotify dist/rssnotify-linux-x86_64
+          fi
       - name: Upload binary to tag release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/rssnotify-${{ matrix.target }}
+          files: |
+            dist/rssnotify-alpine-x86_64
+            dist/rssnotify-linux-x86_64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Update 'latest' release with binary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create or update the 'latest' release
-          gh release view latest || gh release create latest dist/rssnotify-${{ matrix.target }} --title "Latest" --notes "Latest build" --prerelease
-          gh release upload latest dist/rssnotify-${{ matrix.target }} --clobber
+          if [ -f dist/rssnotify-alpine-x86_64 ]; then
+            gh release view latest || gh release create latest dist/rssnotify-alpine-x86_64 --title "Latest" --notes "Latest build (Alpine)" --prerelease
+            gh release upload latest dist/rssnotify-alpine-x86_64 --clobber
+          fi
+          if [ -f dist/rssnotify-linux-x86_64 ]; then
+            gh release view latest || gh release create latest dist/rssnotify-linux-x86_64 --title "Latest" --notes "Latest build (Linux)" --prerelease
+            gh release upload latest dist/rssnotify-linux-x86_64 --clobber
+          fi
