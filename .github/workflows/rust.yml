@@ -60,14 +60,6 @@ jobs:
           cargo build --release
           mkdir -p dist
           cp target/release/rssnotify dist/rssnotify-linux-x86_64
-      - name: Prepare binary for upload
-        run: |
-          mkdir -p dist
-          if [ "${{ matrix.build-type }}" = "alpine" ]; then
-            cp target/x86_64-unknown-linux-musl/release/rssnotify dist/rssnotify-alpine-x86_64
-          else
-            cp target/release/rssnotify dist/rssnotify-linux-x86_64
-          fi
       - name: Upload binary to tag release
         uses: softprops/action-gh-release@v2
         with:
