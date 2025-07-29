@@ -29,22 +29,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
       - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
           target: ${{ matrix.target }}
-      - name: Install musl-tools (for Alpine build)
+      - name: Build binary (Alpine in Docker)
         if: matrix.build-type == 'alpine'
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - name: Build binary
         run: |
-          if [ "${{ matrix.build-type }}" = "alpine" ]; then
-            cargo build --release --target x86_64-unknown-linux-musl
-          else
-            cargo build --release
-          fi
+          docker run --rm -v "$PWD":/volume -w /volume rust:alpine sh -c '
+            apk add --no-cache musl-dev openssl-dev sqlite-dev && \
+            cargo build --release && \
+            cp target/release/rssnotify dist/rssnotify-alpine-x86_64
+          '
+      - name: Build binary (Ubuntu)
+        if: matrix.build-type == 'ubuntu'
+        run: |
+          cargo build --release
+          cp target/release/rssnotify dist/rssnotify-linux-x86_64
       - name: Prepare binary for upload
         run: |
           mkdir -p dist
