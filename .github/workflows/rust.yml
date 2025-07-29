@@ -57,6 +57,7 @@ jobs:
         if: matrix.build-type == 'ubuntu'
         run: |
           cargo build --release
+          mkdir -p dist
           cp target/release/rssnotify dist/rssnotify-linux-x86_64
       - name: Prepare binary for upload
         run: |

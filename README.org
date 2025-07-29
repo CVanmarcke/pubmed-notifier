@@ -6,6 +6,10 @@ A key feature is that it is configurable by the users by issuing commands to the
 This was mainly a personal project to learn rust, so many improvements are possible. For my use case, I consider it nearly feature complete.
 
 * Installation and setup
+** Requirements
+- Openssl
+- Sqlite3
+
 ** Installation
 1. Clone the git repo.
 2. Build the dep with ~cargo deb~ and install ~.dep~ (can be automatically installed by building with ~cargo deb --install~).
