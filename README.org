@@ -39,11 +39,12 @@ Example configuration below. Put it in ~~/.config/rssnotify/config.toml~ .
 #+end_src
 
 Available settings:
-| admin       | Chat id of the bot administrator. Gives access to admin commands.                                            |
-| bot_token   | Telegram bot token.                                                                                          |
-| db_path     | Path of the sqlite database. Default ~/.config/rssnotify/database.db3                                        |
-| log_path    | Path of the log file. Default ~/.config/rssnotify/rssnotify.log                                              |
-| update_time | The time it checks for updates and sends the new items to users. Use cron-like language (see example above). |
+| admin                  | Chat id of the bot administrator. Gives access to admin commands.                                            |
+| bot_token              | Telegram bot token.                                                                                          |
+| db_path                | Path of the sqlite database. Default ~/.config/rssnotify/database.db3                                        |
+| log_path               | Path of the log file. Default ~/.config/rssnotify/rssnotify.log                                              |
+| update_time            | The time it checks for updates and sends the new items to users. Use cron-like language (see example above). |
+| send_collection_number | True or false: send the collection number to the user when sending an item. Default True                     |
 
 * Quickstart as user
 - See [[Telegram commands]].

@@ -18,6 +18,7 @@ pub struct Config {
     pub log_level: log::LevelFilter,
     pub log_path: PathBuf,
     pub admin: Option<u64>,
+    pub send_collection: bool,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -32,6 +33,7 @@ impl Default for Config {
             update_time: parse_update_time("9-17").unwrap(),
             log_level: log::LevelFilter::Info,
             admin: None,
+            send_collection: true,
         }
     }
 }
@@ -114,7 +116,12 @@ impl Config {
                     if let Some(update_time) = table["update_time"].as_str() {
                         self.update_time = parse_update_time(update_time).unwrap()
                     }
-                }
+                },
+                "send_collection_number" => {
+                    if let Some(send_collection_number) = table["send_collection_number"].as_bool() {
+                        self.send_collection = send_collection_number
+                    }
+                },
                 _ => (),
             }
         }
