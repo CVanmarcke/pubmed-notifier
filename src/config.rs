@@ -62,7 +62,6 @@ impl Config {
         self.db_path = expand_tilde("target/debug/database.db3").unwrap();
     }
 
-    // TODO
     pub fn build_from_toml_and_args(args: &[String]) -> Result<Config, Box<dyn Error>> {
         let mut config = Config::build(args)?;
         if config.config_path.is_file() {

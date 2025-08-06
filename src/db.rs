@@ -434,6 +434,30 @@ pub mod sqlite {
         s.push_str(&format!("Blacklist: {:?}\n", collection.blacklist));
         Ok(s)
     }
+
+    // Delete all users without an item in the feedlist
+    pub fn clean_users(conn: &Connection) -> Result<usize, rusqlite::Error> {
+        log::info!("Cleaning database.");
+        let mut deleted = 0;
+        let users = get_users(conn)?;
+        // TODO with map filter?
+        for user in users.iter() {
+            if user.rss_lists.len() == 0 {
+                let _ = delete_user(conn, user.chat_id);
+                deleted += 1;
+            }
+        }
+        log::info!("Deleted {} users from the database.", deleted);
+        Ok(deleted)
+    }
+
+    pub fn delete_user(conn: &Connection, id: i64) -> Result<usize, rusqlite::Error> {
+        log::debug!("Deleting user {}.", id);
+        conn.execute(
+            "DELETE from users WHERE rowid=(?1)",
+            params![&id],
+        )
+    }
 }
 
 #[cfg(test)]

@@ -473,6 +473,8 @@ pub enum AdminCommand {
     Users,
     #[command(description = "Execute a command as another user.", parse_with = as_user_parser)]
     AsUser { id: i64, msg: String },
+    #[command(description = "Remove all the users without a collection")]
+    CleanUsers,
     #[command(description = "[feed_id] [item_index] - Get an item from a feed.")]
     GetItem { feed_id: u32, index: usize },
 }
@@ -491,11 +493,17 @@ pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> Cu
         AdminCommand::AdminHelp => Ok(AdminCommand::descriptions().to_string()),
         AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
         AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
+        AdminCommand::CleanUsers => clean_users(conn),
         AdminCommand::Update => db::sqlite::update_channels(conn)
             .await
             .map(|_| "Updated channels".to_string())
             .map_err(|e| e.into()),
     }
+}
+
+fn clean_users(conn: &Connection) -> CustomResult<String>{
+    let cleaned = db::sqlite::clean_users(conn)?;
+    Ok(format!("Removed {} users from the database.", cleaned))
 }
 
 fn as_user_parser(s: String) -> Result<(i64, String), ParseError> {
