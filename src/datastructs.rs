@@ -20,6 +20,7 @@ use std::ops::DerefMut;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct User {
     pub chat_id: i64,
+    pub full_name: Option<String>,
     pub last_pushed: String, // of date
     pub rss_lists: Vec<UserRssList>,
 }
@@ -54,13 +55,13 @@ impl User {
     pub fn new(chat_id: i64) -> User {
         User {
             chat_id,
-            last_pushed: Local::now().to_rfc2822(),
-            rss_lists: Vec::new(),
+            ..Default::default()
         }
     }
-    pub fn build(chat_id: i64, last_pushed: String, rss_lists: Vec<UserRssList>) -> User {
+    pub fn build(chat_id: i64, full_name: Option<String>, last_pushed: String, rss_lists: Vec<UserRssList>) -> User {
         User {
             chat_id,
+            full_name,
             last_pushed,
             rss_lists,
         }
@@ -76,14 +77,12 @@ impl User {
         &self,
         feedmap: &'a BTreeMap<u32, PubmedFeed>,
     ) -> Option<Vec<&'a Item>> {
-        // Result<(), Box<dyn Error + Sync + Send>>
         //TODO
         let mut to_send = Vec::new();
         for list in &self.rss_lists {
             //TODO uid klopt niet
             for uid in &list.feeds {
                 if let Some(pmfeed) = feedmap.get(uid) {
-                    // TODO unwrap
                     if let Ok(items) = pmfeed.channel.get_new_items(&self.last_pushed) {
                         log::trace!(
                             "Collected {} new items in feed {} for user {}",
@@ -94,7 +93,7 @@ impl User {
                         // for item in items
                         items
                             .into_iter()
-                            .inspect(|item| log::debug!("Title: {}", item.title().unwrap()))
+                            .inspect(|item| log::debug!("Title: {}", item.title().unwrap_or("")))
                             .filter(|item| item_contains_keyword(item, &list.whitelist))
                             // .inspect(|item| log::debug!("item passed whitelist: {}", item.title().unwrap()))
                             .filter(|item| !item_contains_keyword(item, &list.blacklist))
@@ -128,6 +127,17 @@ impl User {
 
     pub fn update_last_pushed(&mut self) {
         self.last_pushed = Local::now().to_rfc2822();
+    }
+}
+
+impl Default for User {
+    fn default() -> Self {
+        User {
+            chat_id: 0,
+            full_name: None,
+            last_pushed: Local::now().to_rfc2822(),
+            rss_lists: Vec::new(),
+        }
     }
 }
 
@@ -385,6 +395,7 @@ mod tests {
 
         let user = User {
             chat_id: 1234i64,
+            full_name: None,
             last_pushed: "31 sept 2024".to_string(),
             rss_lists: vec![uro_rss_list],
         };

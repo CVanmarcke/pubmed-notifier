@@ -80,13 +80,25 @@ pub async fn user_message_handler(
 ) -> ResponseResult<()> {
     let chat_id = msg.clone().chat.id.0;
     let text = String::from(msg.text().unwrap_or(""));
+    let mut full_name = None;
+    if let Some(user) = msg.from {
+        // Ignore bots
+        if user.is_bot {
+            return Ok(());
+        }
+        full_name = Some(user.full_name())
+    }
 
     let answerstring = conn
         .call(move |conn| {
             let mut ur = db::sqlite::get_user(conn, chat_id)?;
             if ur.is_none() {
                 log::info!("User {} not found, adding", chat_id);
-                ur = Some(User::new(chat_id));
+                ur = Some(
+                    User {chat_id,
+                          full_name,
+                          ..Default::default()
+                    });
                 db::sqlite::add_user(conn, &ur.clone().unwrap())?;
             }
 
@@ -300,8 +312,8 @@ mod tests {
         abdomen_rss_list.whitelist =
             preset::merge_keyword_preset_with_set(Keywords::Abdomen, &abdomen_rss_list.whitelist);
 
-        let user = User::build(1234i64, "31 sept 2024".to_string(), vec![uro_rss_list]);
-        let user2 = User::build(12344i64, "31 sept 2024".to_string(), vec![abdomen_rss_list]);
+        let user = User::build(1234i64, None, "31 sept 2024".to_string(), vec![uro_rss_list]);
+        let user2 = User::build(12344i64, None, "31 sept 2024".to_string(), vec![abdomen_rss_list]);
         let userlist = vec![user, user2];
         write_data(&userlist, path).expect("Error writing data");
     }

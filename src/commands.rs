@@ -140,7 +140,7 @@ fn get_users(conn: &Connection) -> CustomResult<String> {
     let users = db::sqlite::get_users(conn)?;
     let mut r = "Users:\n".to_string();
     for user in users {
-        r.push_str(&format!("{}, ", user.chat_id));
+        r.push_str(&format!("{} - {}\n", user.chat_id, user.full_name.as_ref().unwrap_or(&"".to_string())));
     }
     Ok(r)
 }
@@ -150,7 +150,7 @@ async fn as_user(conn: &Connection, user_id: i64, msg: &str) -> CustomResult<Str
     if other_user.is_none() {
         return Ok("User does not exist.".to_string());
     }
-    // TODO if error, return error, or check if valid command...
+    // Unwrap is handled by the if statement above.
     return user_command_handler(msg, other_user.as_mut().unwrap(), conn).await;
 }
 

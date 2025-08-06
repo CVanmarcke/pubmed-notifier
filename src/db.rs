@@ -1,4 +1,4 @@
-const DB_VERSION: u32 = 1;
+const DB_VERSION: u32 = 2;
 
 pub mod sqlite {
     use crate::db::DB_VERSION;
@@ -36,6 +36,7 @@ pub mod sqlite {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS users (
             id           INTEGER PRIMARY KEY,
+            full_name    TEXT,
             last_pushed  TEXT NOT NULL,
             collections  TEXT NOT NULL
         )",
@@ -80,7 +81,7 @@ pub mod sqlite {
         let mut stmt = conn.prepare("SELECT user_version FROM pragma_user_version;")?;
         let mut rows = stmt.query([])?;
         let row_opt = rows.next()?;
-        let version: u32 = match row_opt {
+        let mut version: u32 = match row_opt {
             Some(row) => row.get(0).unwrap_or(0u32),
             None => 0u32,
         };
@@ -98,7 +99,9 @@ pub mod sqlite {
             None,
         )?;
         log::info!("Backup complete");
+        // Update from 0 to 1
         if version == 0 {
+            log::info!("Migrating to db version 1...");
             log::info!("Adding subscribers column...");
             conn.execute(
                 "ALTER TABLE feeds
@@ -125,6 +128,19 @@ pub mod sqlite {
                 update_feed(conn, &feed?)?;
             }
             log::info!("Update to db version 1 complete.");
+            version = 1;
+        }
+        // Update from 1 to 2
+        if version == 1 {
+            log::info!("Migrating to db version 2...");
+            log::info!("Adding full_name column...");
+            conn.execute(
+                "ALTER TABLE users
+                   ADD full_name    TEXT;",
+                (), // empty list of parameters.
+            )?;
+            log::info!("Update to db version 2 complete.");
+            // version = 2;
         }
 
         log::info!("Done. Updating db_version");
@@ -180,8 +196,8 @@ pub mod sqlite {
         let collections = serde_json::to_string(&user.rss_lists)
             .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?;
         conn.execute(
-            "INSERT OR IGNORE INTO users (id, last_pushed, collections) VALUES (?1, ?2, ?3)",
-            (&user.chat_id, &user.last_pushed, &collections),
+            "INSERT OR IGNORE INTO users (id, full_name, last_pushed, collections) VALUES (?1, ?2, ?3, ?4)",
+            (&user.chat_id, &user.full_name, &user.last_pushed, &collections),
         )
     }
 
@@ -192,23 +208,25 @@ pub mod sqlite {
         conn.execute(
             "UPDATE users
              SET last_pushed = ?1,
-                 collections = ?2
-             WHERE id = ?3",
-            params![&user.last_pushed, &collections, &user.chat_id],
+                 collections = ?2,
+                 full_name = ?3
+             WHERE id = ?4",
+            params![&user.last_pushed, &collections, &user.full_name, &user.chat_id],
         )
     }
 
     pub fn get_user(conn: &Connection, id: i64) -> Result<Option<User>, rusqlite::Error> {
         let mut stmt =
-            conn.prepare("SELECT id, last_pushed, collections FROM users WHERE id=(?1)")?;
+            conn.prepare("SELECT id, full_name, last_pushed, collections FROM users WHERE id=(?1)")?;
         let mut rows = stmt.query([id])?;
         let row_opt = rows.next()?;
         if let Some(row) = row_opt {
             Ok(Some(User {
                 chat_id: row.get(0)?,
-                last_pushed: row.get(1)?,
+                full_name: row.get(1)?,
+                last_pushed: row.get(2)?,
                 rss_lists: {
-                    let s: String = row.get(2)?;
+                    let s: String = row.get(3)?;
                     serde_json::from_str(s.as_str())
                         .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?
                 },
@@ -219,13 +237,14 @@ pub mod sqlite {
     }
 
     pub fn get_users(conn: &Connection) -> Result<Vec<User>, rusqlite::Error> {
-        let mut stmt = conn.prepare("SELECT id, last_pushed, collections FROM users")?;
+        let mut stmt = conn.prepare("SELECT id, full_name, last_pushed, collections FROM users")?;
         let user_iter = stmt.query_map([], |row| {
             Ok(User {
                 chat_id: row.get(0)?,
-                last_pushed: row.get(1)?,
+                full_name: row.get(1)?,
+                last_pushed: row.get(2)?,
                 rss_lists: {
-                    let s: String = row.get(2)?;
+                    let s: String = row.get(3)?;
                     serde_json::from_str(s.as_str())
                         .map_err(|err| rusqlite::Error::ToSqlConversionFailure(err.into()))?
                 },
@@ -431,6 +450,15 @@ mod tests {
     fn test_db_update() {
         let conn = sqlite::open("target/debug/database.db3").unwrap();
         sqlite::update_db(&conn).unwrap();
+
+        let mut stmt = conn.prepare("SELECT user_version FROM pragma_user_version;").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let row_opt = rows.next().unwrap();
+        let mut version: u32 = match row_opt {
+            Some(row) => row.get(0).unwrap_or(0u32),
+            None => 0u32,
+        };
+        assert_eq!(version, DB_VERSION)
     }
     #[test]
     fn test_read_channel() {
