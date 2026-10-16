@@ -125,10 +125,12 @@ async fn main() {
         let state = Arc::clone(&arcconn);
         // let admin = Arc::new(config.admin.clone());
         let admin = config.admin;
+        let api_key = config.pm_api_key.clone(); // Clone the Option<String> from config
+
         tokio::task::spawn(async move {
             // Dispatcher::builder(bot, Update::filter_message().endpoint(user_message_handler))
             Dispatcher::builder(bot, handler)
-                .dependencies(dptree::deps![state, admin])
+                .dependencies(dptree::deps![state, admin, api_key])
                 .build()
                 .dispatch()
                 .await
