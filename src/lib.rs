@@ -47,13 +47,15 @@ pub async fn admin_message_handler(
     bot: Bot,
     msg: Message,
     conn: Arc<tokio_rusqlite::Connection>,
+    api_key: Option<String>,
 ) -> ResponseResult<()> {
     let text = String::from(msg.text().unwrap_or(""));
+    let api_key_clone = api_key.clone();
     let answerstring = conn
         .call(move |conn| {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                admin_command_handler(&text, conn)
+                admin_command_handler(&text, conn, api_key_clone.as_deref())
                     .await
                     .map_err(tokio_rusqlite::Error::Other)
             })
@@ -77,9 +79,11 @@ pub async fn user_message_handler(
     bot: Bot,
     msg: Message,
     conn: Arc<tokio_rusqlite::Connection>,
+    api_key: Option<String>,
 ) -> ResponseResult<()> {
     let chat_id = msg.clone().chat.id.0;
     let text = String::from(msg.text().unwrap_or(""));
+    let api_key_clone = api_key.clone();
     let mut full_name = None;
     if let Some(user) = msg.from {
         // Ignore bots
@@ -104,7 +108,7 @@ pub async fn user_message_handler(
 
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                user_command_handler(&text, &mut ur.unwrap(), conn)
+                user_command_handler(&text, &mut ur.unwrap(), conn, api_key_clone.as_deref())
                     .await
                     .map_err(tokio_rusqlite::Error::Other)
             })
@@ -128,6 +132,7 @@ pub async fn console_message_handler(
     chat_id: i64,
     text: &str,
     conn: &rusqlite::Connection,
+    api_key: Option<&str>,
 ) -> CustomResult<()> {
     let mut ur = db::sqlite::get_user(conn, chat_id)?;
     if ur.is_none() {
@@ -135,18 +140,18 @@ pub async fn console_message_handler(
         ur = Some(User::new(chat_id));
         db::sqlite::add_user(conn, ur.as_ref().unwrap())?;
     }
-    match user_command_handler(text, &mut ur.unwrap(), conn).await {
+    match user_command_handler(text, &mut ur.unwrap(), conn, api_key).await {
         Ok(response) => println!("{}", response),
         Err(e) => println!("Error: {e:?}. Try /help for the list of available commands."),
     }
     Ok(())
 }
 
-pub async fn make_db(path: &Path) -> Result<rusqlite::Connection, rusqlite::Error> {
+pub async fn make_db(path: &Path, api_key: Option<&str>) -> Result<rusqlite::Connection, rusqlite::Error> {
     log::info!("Creating new database at {}", path.display());
     fs::create_dir_all(path.parent().unwrap_or(Path::new(""))).unwrap();
     let conn = db::sqlite::new(path.to_str().unwrap()).unwrap();
-    let r = db::sqlite::update_channels(&conn).await;
+    let r = db::sqlite::update_channels(&conn, api_key).await;
     if r.is_err() {
         log::error!("Error when updating the channel!\n{:?}", r.err().unwrap())
     }

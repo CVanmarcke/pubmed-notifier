@@ -105,6 +105,7 @@ pub async fn user_command_handler(
     msg: &str,
     user: &mut User,
     conn: &rusqlite::Connection,
+    api_key: Option<&str>,
 ) -> CustomResult<String> {
     let command = Command::parse(msg, "");
     if command.is_err() {
@@ -121,7 +122,7 @@ pub async fn user_command_handler(
         Command::Collections => Ok(format!("You currently have {} collections in total. Inspect them with /collection [num] (starting at 0).", user.rss_lists.len())) ,
         Command::Collection { collection_index  } => show_collection(conn, user, collection_index),
         Command::Feeds => list_feeds(conn),
-        Command::NewFeed { name, link } =>  newfeed(conn, name, link).await,
+        Command::NewFeed { name, link } =>  newfeed(conn, name, link, api_key).await,
         Command::AddFeed { feed_id, collection_index } => add_feed_to_collection(conn, user, feed_id, collection_index),
         Command::AddToWhitelist { keyword, collection_index } => add_to_whitelist(conn, user, keyword, collection_index),
         Command::AddToBlacklist { keyword, collection_index } => add_to_blacklist(conn, user, keyword, collection_index),
@@ -145,13 +146,13 @@ fn get_users(conn: &Connection) -> CustomResult<String> {
     Ok(r)
 }
 
-async fn as_user(conn: &Connection, user_id: i64, msg: &str) -> CustomResult<String> {
+async fn as_user(conn: &Connection, user_id: i64, msg: &str, api_key: Option<&str>) -> CustomResult<String> {
     let mut other_user = db::sqlite::get_user(conn, user_id)?;
     if other_user.is_none() {
         return Ok("User does not exist.".to_string());
     }
     // Unwrap is handled by the if statement above.
-    return user_command_handler(msg, other_user.as_mut().unwrap(), conn).await;
+    return user_command_handler(msg, other_user.as_mut().unwrap(), conn, api_key).await;
 }
 
 fn list_feeds(conn: &Connection) -> CustomResult<String> {
@@ -323,9 +324,9 @@ fn show_collection(
     }
 }
 
-async fn newfeed(conn: &Connection, name: String, link: String) -> CustomResult<String> {
+async fn newfeed(conn: &Connection, name: String, link: String, api_key: Option<&str>) -> CustomResult<String> {
     let mut feed = PubmedFeed::build_from_link(&link, &name)?;
-    feed.update_channel_limited().await?;
+    feed.update_channel_limited(api_key).await?;
     feed.update_guid();
     let uid = db::sqlite::add_feed(conn, &feed)?;
     Ok(format!(
@@ -479,7 +480,7 @@ pub enum AdminCommand {
     GetItem { feed_id: u32, index: usize },
 }
 
-pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> CustomResult<String> {
+pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection, api_key: Option<&str>) -> CustomResult<String> {
     let command = AdminCommand::parse(msg, "");
     if command.is_err() {
         return Err(format!(
@@ -492,9 +493,9 @@ pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> Cu
         AdminCommand::GetItem { feed_id, index } => get_item_from_feed(conn, feed_id, index), // in format YYY-mm-dd
         AdminCommand::AdminHelp => Ok(AdminCommand::descriptions().to_string()),
         AdminCommand::Users => get_users(conn), // in format YYY-mm-dd
-        AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg).await, // in format YYY-mm-dd
+        AdminCommand::AsUser { id, msg } => as_user(conn, id, &msg, api_key).await, // in format YYY-mm-dd
         AdminCommand::CleanUsers => clean_users(conn),
-        AdminCommand::Update => db::sqlite::update_channels(conn)
+        AdminCommand::Update => db::sqlite::update_channels(conn, api_key)
             .await
             .map(|_| "Updated channels".to_string())
             .map_err(|e| e.into()),
