@@ -43,8 +43,10 @@ impl Default for Config {
 impl Config {
     pub fn build(args: &[String]) -> Result<Config, Box<dyn Error>> {
         let bot_token = env::var("TELOXIDE_TOKEN").ok();
+        let pm_api_key = env::var("PUBMED_API_KEY").ok();
         let mut argstruct: Config = Config {
             bot_token,
+            pm_api_key,
             ..Default::default()
         };
         argstruct.apply_args(args)?;
@@ -95,6 +97,14 @@ impl Config {
                         );
                     }
                 },
+                "pm_api_key" => match table["pm_api_key"].as_str() {
+                    Some(s) => self.pm_api_key = Some(s.to_string()),
+                    None => {
+                        return Err(
+                            "Invalid value provided to pm_api_key in the config file!".into()
+                        );
+                    }
+                },
                 "db_path" => match table["db_path"].as_str() {
                     Some(s) => {
                         self.db_path =
@@ -141,7 +151,7 @@ impl Config {
                     Some(s) => self.update_time = parse_update_time(s).unwrap(),
                     None => return Err("No timestamps provided after -u!".into()),
                 },
-                "-f" => match it.next() {
+                "-f" | "--config-file" => match it.next() {
                     Some(f) => {
                         self.config_path =
                             expand_tilde(f).ok_or("There was a problem parsing the path.")?
@@ -159,6 +169,10 @@ impl Config {
                     Some(f) => self.bot_token = Some(f.clone()),
                     None => return Err("No bot token name provided after -t / --token!".into()),
                 },
+                "-a" | "--pm-api-key" => match it.next() {
+                    Some(f) => self.pm_api_key = Some(f.clone()),
+                    None => return Err("No api key provided after -a / --pm-api-key!".into()),
+                },
                 "-l" | "--log-level" => match it.next() {
                     Some(s) => self.log_level = parse_log_level(s)?,
                     None => return Err("No bot token name provided after -l / --log-level!".into()),
@@ -172,7 +186,11 @@ impl Config {
     pub fn log_structs(&self) {
         log::info!(
             "bot_token: {}",
-            self.bot_token.as_ref().unwrap_or(&"".to_string())
+            if self.bot_token.is_some() { "<REDACTED>"} else { "/"}
+        );
+        log::info!(
+            "pm_api_key: {}",
+            if self.pm_api_key.is_some() { "<REDACTED>"} else { "/"}
         );
         log::info!("Persistent: {}", self.persistent);
         log::info!("Update times: {:?}", self.update_time);
