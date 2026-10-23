@@ -116,6 +116,11 @@ impl Config {
                         self.update_time = parse_update_time(update_time).unwrap()
                     }
                 },
+                "log_level" => {
+                    if let Some(log_level) = table["log_level"].as_str() {
+                        self.log_level = parse_log_level(log_level).unwrap()
+                    }
+                },
                 "send_collection_number" => {
                     if let Some(send_collection_number) = table["send_collection_number"].as_bool() {
                         self.send_collection = send_collection_number
