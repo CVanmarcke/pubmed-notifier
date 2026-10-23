@@ -152,16 +152,14 @@ impl PubmedFeed {
 
     // TODO is double function
     pub async fn update_channel(&mut self) -> Result<&PubmedFeed, Box<dyn Error + Sync + Send>> {
-        log::info!("Updating feed {} ({:?})...", &self.name, &self.uid);
         let newchannel = self.download_channel().await?;
         self.channel = newchannel;
-        log::info!("... Succesfully");
         Ok(self)
     }
 
     pub async fn update_channel_limited(&mut self) -> Result<(), Box<dyn Error + Sync + Send>> {
         // Don't update if no subscribers
-        log::debug!("Updating feed {} ", self.name);
+        log::info!("Updating feed {} ({:?})...", &self.name, &self.uid);
         if self.subscribers == 0 {
             log::debug!("Subscribers is 0, skipping update.");
             return Ok(());
@@ -180,9 +178,7 @@ impl PubmedFeed {
                 // self.channel.set_last_build_date(Local::now().to_rfc2822())
             }
         }
-        let newchannel = self.download_channel().await?;
-        self.channel = newchannel;
-        log::debug!("Succesfully updated channel {}", &self.name);
+        self.update_channel().await?;
         Ok(())
     }
 
@@ -211,7 +207,7 @@ impl PubmedFeed {
         if let Some(item) = firstitem {
             log::debug!(
                 "Found guid of newest item {:?} in {}",
-                &item.guid,
+                &ChannelWrapper::parse_guid(item).ok(),
                 &self.name
             );
             if item.guid().is_some() {
@@ -220,7 +216,7 @@ impl PubmedFeed {
                 return guid;
             }
         }
-        log::debug!("Could not find a guid in feed {}", &self.name);
+        log::warn!("Could not find a guid in feed {}", &self.name);
         None
     }
 

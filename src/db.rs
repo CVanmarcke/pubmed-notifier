@@ -4,7 +4,7 @@ pub mod sqlite {
     use crate::db::DB_VERSION;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
-use std::time::Duration;
+    use std::time::Duration;
 
     use rusqlite::{Connection, DatabaseName, Result, params};
     use teloxide::RequestError;
@@ -341,22 +341,18 @@ use std::time::Duration;
     pub async fn update_channels(conn: &Connection) -> Result<u32, rusqlite::Error> {
         log::info!("Updating all channels...");
         let mut feeds = get_feeds(conn)?;
-        let mut result = Vec::new();
         let mut acc = 0;
         for feed in feeds.iter_mut() {
-            result.push(feed.update_channel_limited().await);
+            if let Err(e) = feed.update_channel_limited().await {
+                log::error!("Error in update_channel_limited function for feed {}:\n{:?}", feed.name, e)
+            }
             let r = update_feed(conn, feed);
             match r {
                 Ok(i) => acc += i,
                 // TODO
-                _ => log::error!("Error updating the database with the updated feed:{:?}", r),
+                _ => log::error!("Error updating the database with the updated feed for {}: {:?}", feed.name, r),
             }
             tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-        for r in result {
-            if let Err(e) = r {
-                log::error!("Error in update_channel_limited function:\n{:?}", e)
-            }
         }
         Ok(acc)
     }
