@@ -9,7 +9,6 @@ pub mod sqlite {
     use rusqlite::{Connection, DatabaseName, Result, params};
     use teloxide::RequestError;
     use tokio_rusqlite;
-    // use tokio_rusqlite;
     use crate::channelwrapper::ChannelWrapper;
     use crate::datastructs::User;
     use crate::datastructs::{PubmedFeed, UserRssList};
@@ -460,11 +459,12 @@ pub mod sqlite {
 
 #[cfg(test)]
 mod tests {
-
+    use std::str::FromStr;
+    use rss::Channel;
     use simple_expand_tilde::expand_tilde;
     use teloxide::types::ParseMode;
 
-    use crate::{datastructs::ItemMetadata, formatter::PreppedMessage};
+    use crate::{channelwrapper::ChannelWrapper, datastructs::{ItemMetadata, PubmedFeed}, formatter::PreppedMessage};
 
     use super::*;
 
@@ -476,7 +476,7 @@ mod tests {
         let mut stmt = conn.prepare("SELECT user_version FROM pragma_user_version;").unwrap();
         let mut rows = stmt.query([]).unwrap();
         let row_opt = rows.next().unwrap();
-        let mut version: u32 = match row_opt {
+        let version: u32 = match row_opt {
             Some(row) => row.get(0).unwrap_or(0u32),
             None => 0u32,
         };
