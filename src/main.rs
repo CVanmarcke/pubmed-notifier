@@ -56,7 +56,7 @@ async fn main() {
 
     let conn = match config.db_path.is_file() {
         true => db::sqlite::open(config.db_path.to_str().unwrap()).unwrap(),
-        false => make_db(&config.db_path, config.pm_api_key.as_deref()).await.unwrap(),
+        false => make_db(&config.db_path).await.unwrap(),
     };
 
     let aconn = Connection::open(&config.db_path).await.unwrap();
@@ -64,8 +64,7 @@ async fn main() {
 
     if !config.persistent {
         log::info!("Running once.");
-        let api_key: Option<&str> = config.pm_api_key.as_deref();
-        let r = db::sqlite::update_channels(&conn, api_key).await;
+        let r = db::sqlite::update_channels(&conn).await;
         if let Err(e) = r {
             log::error!("Error when updating the channels: {e:?}");
             process::exit(1);
@@ -84,7 +83,7 @@ async fn main() {
     }
 
     if config.interactive {
-        interactive_bot(&conn, config.pm_api_key).await
+        interactive_bot(&conn).await
     } else {
         let handler = Update::filter_message()
             // You can use branching to define multiple ways in which an update will be handled. If the
@@ -168,7 +167,6 @@ where
     let arcconn = Arc::new(conn);
     let cron = format!("0 0 {} * * *", config.update_time);
     let sched = JobScheduler::new().await.unwrap();
-    let api_key_clone: Option<String> = config.pm_api_key.clone();
 
     let job = JobBuilder::new()
         .with_timezone(chrono::Local)
@@ -179,13 +177,12 @@ where
         .with_run_async(Box::new(move |_uuid, mut _l| {
             let arcconn = Arc::clone(&arcconn);
             let sender = sender.clone();
-            let api_key = api_key_clone.clone(); // Re-clone into the closure scope
             Box::pin(async move {
                 if let Err(e) = arcconn
                     .call(move |conn| {
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         rt.block_on(async {
-                            db::sqlite::update_channels(conn, api_key.as_deref())
+                            db::sqlite::update_channels(conn)
                                 .await
                                 .map_err(tokio_rusqlite::Error::Rusqlite)?;
                             send_new_users(conn, &sender)
@@ -263,7 +260,7 @@ async fn send_new_user<S: Sender>(
     Ok(1)
 }
 
-async fn interactive_bot(conn: &rusqlite::Connection, api_key: Option<String>) {
+async fn interactive_bot(conn: &rusqlite::Connection) {
     // async fn interactive_bot (userdata: Arc<Mutex<Vec<User>>>, feeddata: Arc<Mutex<ChannelLookupTable>>) {
     println!("Starting interactive mode");
 
@@ -283,7 +280,7 @@ async fn interactive_bot(conn: &rusqlite::Connection, api_key: Option<String>) {
         std::io::stdin()
             .read_line(&mut line)
             .expect("Did not enter a correct string");
-        let _ = console_message_handler(chat_id, line.trim(), conn, api_key.as_deref()).await;
+        let _ = console_message_handler(chat_id, line.trim(), conn).await;
         // let _ = console_message_handler(chat_id, &line.trim(), Arc::clone(&userdata), Arc::clone(&feeddata)).await;
         line.clear();
     }

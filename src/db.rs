@@ -1,10 +1,9 @@
-const DB_VERSION: u32 = 3;
+const DB_VERSION: u32 = 2;
 
 pub mod sqlite {
     use crate::db::DB_VERSION;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
-use std::time::Duration;
 
     use rusqlite::{Connection, DatabaseName, Result, params};
     use teloxide::RequestError;
@@ -142,34 +141,6 @@ use std::time::Duration;
             )?;
             log::info!("Update to db version 2 complete.");
             // version = 2;
-        }
-        if version == 2 {
-            log::info!("Migrating to db version 3 (PubMed API update method)...");
-            let mut stmt = conn.prepare("SELECT id, link FROM feeds WHERE link LIKE '%pubmed.ncbi.nlm.nih.gov/rss/%'")?;
-            let feed_updates = stmt.query_map([], |row| {
-                let id: u32 = row.get(0)?;
-                let link: String = row.get(1)?;
-                Ok((id, link))
-            })?;
-
-            let re = regex::Regex::new(r"name=([^&]+)").unwrap();
-            for feed in feed_updates {
-                let (id, link) = feed?;
-                if let Some(caps) = re.captures(&link) {
-                    let decoded_name = urlencoding::decode(&caps[1]).unwrap_or_default();
-                    // Converteer oude RSS link naar de nieuwe eutils API basislink of pas de link aan
-                    let new_link = link.replace("/rss/journals/", "/entrez/eutils/esearch.fcgi?db=pubmed&term="); // Aangepast naar wens
-                    conn.execute(
-                        "UPDATE feeds SET name = ?1 WHERE id = ?2",
-                        params![decoded_name.to_string(), id],
-                    )?;
-                    conn.execute(
-                        "UPDATE feeds SET link = ?1 WHERE id = ?2",
-                        params![new_link, id],
-                    )?;
-                }
-            }
-            log::info!("Update to db version 3 complete.");
         }
 
         log::info!("Done. Updating db_version");
@@ -366,21 +337,24 @@ use std::time::Duration;
         }
     }
 
-    pub async fn update_channels(conn: &Connection, api_key: Option<&str>) -> Result<u32, rusqlite::Error> {
+    pub async fn update_channels(conn: &Connection) -> Result<u32, rusqlite::Error> {
         log::info!("Updating all channels...");
         let mut feeds = get_feeds(conn)?;
+        let mut result = Vec::new();
         let mut acc = 0;
         for feed in feeds.iter_mut() {
-            if let Err(e) = feed.update_channel_limited(api_key).await {
-                log::error!("Error updating channel {}: {:?}", feed.name, e);
-            } else {
-                let r = update_feed(conn, feed);
-                match r {
-                    Ok(i) => acc += i,
-                    Err(err) => log::error!("Error updating the database with the updated feed:{:?}", err),
-                }
+            result.push(feed.update_channel_limited().await);
+            let r = update_feed(conn, feed);
+            match r {
+                Ok(i) => acc += i,
+                // TODO
+                _ => log::error!("Error updating the database with the updated feed:{:?}", r),
             }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        for r in result {
+            if let Err(e) = r {
+                log::error!("Error in update_channel_limited function:\n{:?}", e)
+            }
         }
         Ok(acc)
     }
@@ -493,6 +467,7 @@ mod tests {
     use teloxide::types::ParseMode;
 
     use crate::{datastructs::ItemMetadata, formatter::PreppedMessage};
+
     use super::*;
 
     #[test]
@@ -503,7 +478,7 @@ mod tests {
         let mut stmt = conn.prepare("SELECT user_version FROM pragma_user_version;").unwrap();
         let mut rows = stmt.query([]).unwrap();
         let row_opt = rows.next().unwrap();
-        let version: u32 = match row_opt {
+        let mut version: u32 = match row_opt {
             Some(row) => row.get(0).unwrap_or(0u32),
             None => 0u32,
         };
@@ -518,20 +493,5 @@ mod tests {
         let message =
             PreppedMessage::build(item, &ItemMetadata::default()).format(ParseMode::MarkdownV2);
         println!("{}", message);
-    }
-
-    #[test]
-    fn test_update_channels() {
-        let target = expand_tilde("proxmox_data/database.db3").unwrap();
-        // let target = expand_tilde("target/debug/database.db3").unwrap();
-        let conn = sqlite::open(target.to_str().unwrap()).unwrap();
-        let api_key = std::env::var("PUBMED_API_KEY").ok();
-
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let result = sqlite::update_channels(&conn, api_key.as_deref()).await;
-            assert!(result.is_ok());
-        });
-        println!("Success");
     }
 }

@@ -1,8 +1,8 @@
 use crate::channelwrapper::ChannelWrapper;
 use crate::rsshandler::item_contains_keyword;
+use chrono::DateTime;
 use chrono::Local;
 use chrono::format::ParseResult;
-use serde_json::Value;
 use core::str;
 use futures::future::join_all;
 use regex::Regex;
@@ -143,110 +143,42 @@ impl Default for User {
 
 impl PubmedFeed {
     // let link = "https://pubmed.ncbi.nlm.nih.gov/rss/journals/101532453/?limit=5&name=Insights%20Imaging&utm_campaign=journals";
-    pub async fn download_channel(&self, api_key: Option<&str>) -> Result<ChannelWrapper, Box<dyn Error + Sync + Send>> {
-let client = reqwest::Client::new();
-        
-        // Stap 1: Zoek de laatste PMIDs op basis van de journalnaam (term)
-        let search_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi";
-        let mut search_params = vec![
-            ("db", "pubmed".to_string()),
-            ("term", format!("\"{}\"[ta]", self.name)),
-            ("sort", "pub_date".to_string()),
-            ("retmax", "20".to_string()),
-            ("retmode", "json".to_string()),
-            ("tool", "rust_pubmed_scraper".to_string()),
-        ];
-        if let Some(key) = api_key {
-            search_params.push(("api_key", key.to_string()));
-        }
-
-        let search_resp = client
-            .get(search_url)
-            .query(&search_params)
-            .send()
-            .await?
-            .json::<Value>()
-            .await?;
-
-        let id_list = search_resp["esearchresult"]["idlist"]
-            .as_array()
-            .ok_or("No articles found or error in search response.")?;
-
-        let pmids: Vec<String> = id_list
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect();
-
-        if pmids.is_empty() {
-            return Ok(ChannelWrapper::new());
-        }
-
-        // Stap 2: Haal de samenvattingen op voor deze PMIDs
-        let summary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
-        let pmid_str = pmids.join(",");
-        let mut summary_params = vec![
-            ("db", "pubmed".to_string()),
-            ("id", pmid_str),
-            ("retmode", "json".to_string()),
-            ("tool", "rust_pubmed_scraper".to_string()),
-        ];
-        if let Some(key) = api_key {
-            summary_params.push(("api_key", key.to_string()));
-        }
-
-        let summary_resp = client
-            .get(summary_url)
-            .query(&summary_params)
-            .send()
-            .await?
-            .json::<Value>()
-            .await?;
-
-        let result_obj = summary_resp["result"].as_object().ok_or("Invalid summary response format")?;
-
-        // Converteer de API-resultaten naar RSS Items binnen de ChannelWrapper
-        let mut items = Vec::new();
-        for pmid in &pmids {
-            if let Some(article) = result_obj.get(pmid) {
-                let pubdate = article["pubdate"].as_str().unwrap_or("");
-                let title = article["title"].as_str().unwrap_or("No Title")
-                    .replace("<i>", "").replace("</i>", "")
-                    .replace("<b>", "").replace("</b>", "");
-
-                let mut item = Item::default();
-                item.set_title(title);
-                item.set_guid(rss::Guid {
-                    value: pmid.clone(),
-                    permalink: false,
-                });
-                item.set_pub_date(pubdate.to_string());
-                item.set_link(format!("https://pubmed.ncbi.nlm.nih.gov/{}/", pmid));
-                items.push(item);
-            }
-        }
-
-        let mut channel = Channel::default();
-        channel.set_items(items);
+    pub async fn download_channel(&self) -> Result<ChannelWrapper, Box<dyn Error + Sync + Send>> {
+        let content = reqwest::get(self.get_link()).await?.bytes().await?;
+        let channel = Channel::read_from(&content[..])?;
         Ok(ChannelWrapper::build(channel))
     }
 
     // TODO is double function
-    pub async fn update_channel(&mut self, api_key: Option<&str>) -> Result<&PubmedFeed, Box<dyn Error + Sync + Send>> {
-        log::info!("Updating feed {} ({:?}) via API...", &self.name, &self.uid);
-        let newchannel = self.download_channel(api_key).await?;
+    pub async fn update_channel(&mut self) -> Result<&PubmedFeed, Box<dyn Error + Sync + Send>> {
+        log::info!("Updating feed {} ({:?})...", &self.name, &self.uid);
+        let newchannel = self.download_channel().await?;
         self.channel = newchannel;
-        log::info!("... Successfully updated");
+        log::info!("... Succesfully");
         Ok(self)
     }
 
-    pub async fn update_channel_limited(&mut self, api_key: Option<&str>) -> Result<(), Box<dyn Error + Sync + Send>> {
+    pub async fn update_channel_limited(&mut self) -> Result<(), Box<dyn Error + Sync + Send>> {
+        // Don't update if no subscribers
+        log::debug!("Updating feed {} ", self.name);
         if self.subscribers == 0 {
             log::debug!("Subscribers is 0, skipping update.");
             return Ok(());
         }
-        let newchannel = self.download_channel(api_key).await?;
+        // Don't update if update < 1 hour ago
+        if let Some(last_build_date) = self.channel.last_build_date() {
+            let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date)
+                .unwrap_or_default()
+                .into();
+            let diff = Local::now() - prev;
+            if diff.num_minutes() < 55 {
+                log::debug!("Last update was < 1 hour: skipping update.");
+                return Ok(());
+            }
+        }
+        let newchannel = self.download_channel().await?;
         self.channel = newchannel;
-        log::debug!("Successfully updated channel {}", &self.name);
+        log::debug!("Succesfully updated channel {}", &self.name);
         Ok(())
     }
 
@@ -439,11 +371,11 @@ impl ChannelLookupTable {
         42
     }
     // TODO result nog
-    pub async fn update_all(&mut self, api_key: Option<&str>) -> Vec<Result<&PubmedFeed, Box<dyn Error + Sync + Send>>> {
+    pub async fn update_all(&mut self) -> Vec<Result<&PubmedFeed, Box<dyn Error + Sync + Send>>> {
         let mut futureresults = Vec::new();
         for (_, feed) in self.iter_mut() {
             // Error nog mappen met key er in zodat we weten wat er niet gelukt was....
-            futureresults.push(PubmedFeed::update_channel(feed, api_key));
+            futureresults.push(PubmedFeed::update_channel(feed));
         }
         join_all(futureresults).await
     }
