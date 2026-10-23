@@ -4,6 +4,7 @@ pub mod sqlite {
     use crate::db::DB_VERSION;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
+use std::time::Duration;
 
     use rusqlite::{Connection, DatabaseName, Result, params};
     use teloxide::RequestError;
@@ -350,6 +351,7 @@ pub mod sqlite {
                 // TODO
                 _ => log::error!("Error updating the database with the updated feed:{:?}", r),
             }
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
         for r in result {
             if let Err(e) = r {
