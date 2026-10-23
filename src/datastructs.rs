@@ -2,6 +2,7 @@ use crate::channelwrapper::ChannelWrapper;
 use crate::rsshandler::item_contains_keyword;
 use chrono::DateTime;
 use chrono::Local;
+use chrono::TimeDelta;
 use chrono::format::ParseResult;
 use core::str;
 use futures::future::join_all;
@@ -167,13 +168,16 @@ impl PubmedFeed {
         }
         // Don't update if update < 1 hour ago
         if let Some(last_build_date) = self.channel.last_build_date() {
-            let prev: DateTime<Local> = DateTime::parse_from_rfc2822(last_build_date)
-                .unwrap_or_default()
-                .into();
-            let diff = Local::now() - prev;
-            if diff.num_minutes() < 55 {
-                log::debug!("Last update was < 1 hour: skipping update.");
-                return Ok(());
+            if let Ok(prev) = DateTime::parse_from_rfc2822(last_build_date) {
+                let prev:DateTime<Local> = prev.into();
+                let diff: TimeDelta = Local::now() - prev;
+                if diff.num_minutes() < 55 {
+                    log::debug!("Last update was < 1 hour: skipping update.");
+                    return Ok(());
+                }
+            } else {
+                log::warn!("Could not parse last update date for {}: was {:?}", self.name, self.channel.last_build_date());
+                // self.channel.set_last_build_date(Local::now().to_rfc2822())
             }
         }
         let newchannel = self.download_channel().await?;
