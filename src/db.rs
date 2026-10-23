@@ -3,9 +3,8 @@ const DB_VERSION: u32 = 3;
 pub mod sqlite {
     use crate::db::DB_VERSION;
     use std::collections::{HashMap, HashSet};
-    use std::error::Error;
     use std::sync::Arc;
-    use std::time::Duration;
+use std::time::Duration;
 
     use rusqlite::{Connection, DatabaseName, Result, params};
     use teloxide::RequestError;
@@ -367,28 +366,21 @@ pub mod sqlite {
         }
     }
 
-    pub async fn update_channels(conn: &Connection, api_key: Option<&str>) -> Result<u32, Box<dyn Error + Send + Sync>> {
+    pub async fn update_channels(conn: &Connection, api_key: Option<&str>) -> Result<u32, rusqlite::Error> {
         log::info!("Updating all channels...");
         let mut feeds = get_feeds(conn)?;
         let mut acc = 0;
-        let mut error = None;
         for feed in feeds.iter_mut() {
             if let Err(e) = feed.update_channel_limited(api_key).await {
                 log::error!("Error updating channel {}: {:?}", feed.name, e);
-                error = Some(e);
             } else {
                 let r = update_feed(conn, feed);
                 match r {
                     Ok(i) => acc += i,
-                    Err(err) => {
-                        log::error!("Error updating the database with the updated feed:{:?}", err);
-                    error = Some(err.into())},
+                    Err(err) => log::error!("Error updating the database with the updated feed:{:?}", err),
                 }
             }
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
-        if error.is_some() {
-            return Err(error.unwrap())
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
         Ok(acc)
     }

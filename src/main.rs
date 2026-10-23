@@ -189,7 +189,7 @@ where
                         rt.block_on(async {
                             db::sqlite::update_channels(conn, api_key.as_deref())
                                 .await
-                                .map_err(tokio_rusqlite::Error::Other)?;
+                                .map_err(tokio_rusqlite::Error::Rusqlite)?;
                             send_new_users(conn, &sender)
                                 .await
                                 .map_err(tokio_rusqlite::Error::Rusqlite)
