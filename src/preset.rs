@@ -62,6 +62,8 @@ const DEFAULT_BLACKLIST: &[&str] = &[
     "erratum for: ",
     "editorial comment",
     "response to \"",
+    "In reply to",
+    "Comment on \"",
 ];
 
 const AI_BLACKLIST: &[&str] = &[
