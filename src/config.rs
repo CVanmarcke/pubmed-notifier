@@ -175,7 +175,7 @@ impl Config {
     pub fn log_structs(&self) {
         log::info!(
             "bot_token: {}",
-            self.bot_token.as_ref().unwrap_or(&"".to_string())
+            if self.bot_token.is_some() { "<REDACTED>" } else { "none" }
         );
         log::info!("Persistent: {}", self.persistent);
         log::info!("Update times: {:?}", self.update_time);
