@@ -27,7 +27,7 @@ This was mainly a personal project to learn rust, so many improvements are possi
 | ~-u~ / ~--update-times [times]~ | Set the default refresh times (default 9-17). Eg =9-17,19= is every hour between 9-17 + 19h.              |
 | ~-i~ / ~--interactive~          | Interactive mode: allows you to chat through the command line instead of telegram.                      |
 | ~-d~ / ~--debug~                |                                                                                                         |
-| ~-f [path]~                   | Config file path (default $userdir/.config/rssnotify/config.toml )                                      |
+| ~-f / --config-file [path]~   | Config file path (default $userdir/.config/rssnotify/config.toml )                                      |
 | ~-p~ / ~--db-path [path]~       | Database file path (default $userdir/.config/rssnotify/database.db3 )                                   |
 | ~-l~ / ~--log-level [level]~    | Default =info=. Can be =off=, =error=, =warn=, =info=, =debug=                                                      |
 

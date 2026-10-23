@@ -144,7 +144,7 @@ impl Config {
                     Some(s) => self.update_time = parse_update_time(s).unwrap(),
                     None => return Err("No timestamps provided after -u!".into()),
                 },
-                "-f" => match it.next() {
+                "-f" | "--config-file" => match it.next() {
                     Some(f) => {
                         self.config_path =
                             expand_tilde(f).ok_or("There was a problem parsing the path.")?
