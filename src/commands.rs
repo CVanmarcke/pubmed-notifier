@@ -48,20 +48,20 @@ pub enum Command {
         collection_index: usize,
     },
     #[command(
-        description = "[word] [collection] - Add a keyword to the whitelist. Provide the keyword and collection number. Space can be entered by using _. Eg. /addtowhitelist cervical_cancer 0",
-        parse_with = "split"
+        description = "[collection] [word] - Add a keyword to the whitelist. Provide the keyword and collection number. Eg. /addtowhitelist 0 cervical cancer",
+        parse_with = usize_string_parser
     )]
     AddToWhitelist {
-        keyword: String,
         collection_index: usize,
+        keyword: String,
     },
     #[command(
-        description = "[word] [collection] - Add a keyword to the blacklist. Space can be entered by using _",
-        parse_with = "split"
+        description = "[collection] [word] - Add a keyword to the blacklist.",
+        parse_with = usize_string_parser
     )]
     AddToBlacklist {
-        keyword: String,
         collection_index: usize,
+        keyword: String,
     },
     #[command(
         description = "[id] [collection] - Remove a feed from a collection.",
@@ -72,20 +72,20 @@ pub enum Command {
         collection_index: usize,
     },
     #[command(
-        description = "[word] [collection] - Remove a keyword from the whitelist.",
-        parse_with = "split"
+        description = "[collection] [word] - Remove a keyword from the whitelist.",
+        parse_with = usize_string_parser
     )]
     RemoveFromBlacklist {
-        keyword: String,
         collection_index: usize,
+        keyword: String,
     },
     #[command(
-        description = "[word] [collection] - Remove a keyword from the blacklist.",
-        parse_with = "split"
+        description = "[collection] [word] - Remove a keyword from the blacklist.",
+        parse_with = usize_string_parser
     )]
     RemoveFromWhitelist {
-        keyword: String,
         collection_index: usize,
+        keyword: String,
     },
     #[command(description = "List available presets.", parse_with = "split")]
     Presets,
@@ -123,11 +123,11 @@ pub async fn user_command_handler(
         Command::Feeds => list_feeds(conn),
         Command::NewFeed { name, link } =>  newfeed(conn, name, link).await,
         Command::AddFeed { feed_id, collection_index } => add_feed_to_collection(conn, user, feed_id, collection_index),
-        Command::AddToWhitelist { keyword, collection_index } => add_to_whitelist(conn, user, keyword, collection_index),
-        Command::AddToBlacklist { keyword, collection_index } => add_to_blacklist(conn, user, keyword, collection_index),
+        Command::AddToWhitelist { collection_index, keyword } => add_to_whitelist(conn, user, keyword, collection_index),
+        Command::AddToBlacklist { collection_index, keyword } => add_to_blacklist(conn, user, keyword, collection_index),
         Command::RemoveFeed { feed_id, collection_index } => remove_feed_from_collection(conn, user, feed_id, collection_index),
-        Command::RemoveFromWhitelist { keyword, collection_index } => remove_from_whitelist(conn, user, keyword, collection_index),
-        Command::RemoveFromBlacklist { keyword, collection_index } => remove_from_blacklist(conn, user, keyword, collection_index),
+        Command::RemoveFromWhitelist { collection_index, keyword } => remove_from_whitelist(conn, user, keyword, collection_index),
+        Command::RemoveFromBlacklist { collection_index, keyword } => remove_from_blacklist(conn, user, keyword, collection_index),
         Command::NewCollection => new_collection(conn, user),
         Command::DeleteCollection { collection_index } => delete_collection(conn, user, collection_index),
         Command::Presets => show_presets(),
@@ -218,11 +218,11 @@ fn add_to_whitelist(
     collection_index: usize,
 ) -> CustomResult<String> {
     if let Some(coll) = user.rss_lists.get_mut(collection_index) {
-        coll.whitelist.insert(keyword.replace("_", " "));
+        coll.whitelist.insert(keyword.clone());
         db::sqlite::update_user(conn, user)?;
         return Ok(format!(
             "Added '{}' to the whitelist of collection {}.",
-            keyword.replace("_", " "),
+            keyword,
             collection_index
         ));
     }
@@ -239,11 +239,11 @@ fn add_to_blacklist(
     collection_index: usize,
 ) -> CustomResult<String> {
     if let Some(coll) = user.rss_lists.get_mut(collection_index) {
-        coll.blacklist.insert(keyword.replace("_", " "));
+        coll.blacklist.insert(keyword.clone());
         db::sqlite::update_user(conn, user)?;
         return Ok(format!(
             "Added '{}' to the blacklist of collection {}.",
-            keyword.replace("_", " "),
+            keyword,
             collection_index
         ));
     }
@@ -260,7 +260,7 @@ fn remove_from_whitelist(
     collection_index: usize,
 ) -> CustomResult<String> {
     if let Some(coll) = user.rss_lists.get_mut(collection_index) {
-        if coll.whitelist.remove(&keyword.replace("_", " ")) {
+        if coll.whitelist.remove(&keyword) {
             db::sqlite::update_user(conn, user)?;
             return Ok(format!(
                 "Removed '{}' from the whitelist of collection {}.",
@@ -269,7 +269,7 @@ fn remove_from_whitelist(
         }
         return Ok(format!(
             "'{}' was not in the whitelist of collection {}.",
-            keyword.replace("_", " "),
+            keyword,
             collection_index
         ));
     }
@@ -286,11 +286,11 @@ fn remove_from_blacklist(
     collection_index: usize,
 ) -> CustomResult<String> {
     if let Some(coll) = user.rss_lists.get_mut(collection_index) {
-        if coll.blacklist.remove(&keyword.replace("_", " ")) {
+        if coll.blacklist.remove(&keyword) {
             db::sqlite::update_user(conn, user)?;
             return Ok(format!(
                 "Removed '{}' from the blacklist of collection {}.",
-                keyword.replace("_", " "),
+                keyword,
                 collection_index
             ));
         }
@@ -504,6 +504,22 @@ pub async fn admin_command_handler(msg: &str, conn: &rusqlite::Connection) -> Cu
 fn clean_users(conn: &Connection) -> CustomResult<String>{
     let cleaned = db::sqlite::clean_users(conn)?;
     Ok(format!("Removed {} users from the database.", cleaned))
+}
+
+fn usize_string_parser(s: String) -> Result<(usize, String), ParseError> {
+    match s.find(" ") {
+        Some(first_space) => {
+            let num = s[0..first_space]
+                .parse::<usize>()
+                .map_err(|e| ParseError::IncorrectFormat(e.into()))?;
+            Ok((num, s[first_space + 1..].to_string()))
+        }
+        None => Err(ParseError::Custom(
+            "Wrong command. Provide a collection number and a word/sentence, divided with spaces."
+                .to_string()
+                .into(),
+        )),
+    }
 }
 
 fn as_user_parser(s: String) -> Result<(i64, String), ParseError> {
