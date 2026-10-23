@@ -186,6 +186,10 @@ impl PubmedFeed {
         self.uid.replace(newuid) // Returns the old value!
     }
 
+    pub fn get_items<'a>(&'a self) -> Vec<&'a Item> {
+        self.channel.get_items()
+    }
+
     pub fn get_new_items<'a>(&'a self, fromdate: &str) -> ParseResult<Vec<&'a Item>> {
         self.channel.get_new_items(fromdate)
     }
@@ -194,8 +198,7 @@ impl PubmedFeed {
         if let Some(guid) = self.last_pushed_guid.as_ref() {
             self.channel.get_new_items_from_last(guid)
         } else {
-            // self.update_guid();
-            vec![]
+            self.channel.get_items()
         }
     }
 

@@ -35,6 +35,11 @@ impl ChannelWrapper {
     pub fn replace(&mut self, channel: Channel) {
         self.0 = channel;
     }
+
+    pub fn get_items<'a>(&'a self) -> Vec<&'a Item> {
+        self.items().iter().collect::<Vec<&Item>>()
+    }
+
     pub fn get_new_items<'a>(&'a self, fromdate: &str) -> Result<Vec<&'a Item>, ParseError> {
         let prev: DateTime<FixedOffset> = DateTime::parse_from_rfc2822(fromdate)?;
         let mut new_items: Vec<&Item> = Vec::new();
